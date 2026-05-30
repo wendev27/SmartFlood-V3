@@ -1,17 +1,39 @@
-// GET /api/sensors/latest
-import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongoClient';
+import { NextResponse } from "next/server";
+import { getDb } from "@/lib/mongodb";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const client = await clientPromise;
-    const db = client.db();
-    const sensors = await db.collection('sensors').find({})
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .toArray();
-    return NextResponse.json({ sensors });
-  } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const db = await getDb();
+    const sensors = await db.collection("sensors").find({}).toArray();
+    const readings = await db.collection("sensor_readings").aggregate([
+      { $sort: { createdAt: -1 } },
+      { $group: {
+        _id: "$sensorId",
+        doc: { $first: "$$ROOT" }
+      }}
+    ]).toArray();
+
+    const latestReadingMap = new Map(readings.map((reading) => [String(reading._id), reading.doc]));
+    const data = sensors.map(sensor => ({
+      sensorId: String(sensor._id),
+      name: sensor.name,
+      barangay: sensor.barangay,
+      barangayName: sensor.barangayName,
+      street: sensor.street || null,
+      status: sensor.status,
+      waterLevelM: latestReadingMap.get(String(sensor._id))?.waterLevelM ?? null,
+      distanceCm: latestReadingMap.get(String(sensor._id))?.distanceCm ?? null,
+      rainfallMm: latestReadingMap.get(String(sensor._id))?.rainfallMm ?? null,
+      batteryPct: latestReadingMap.get(String(sensor._id))?.batteryPct ?? null,
+      computedStatus: latestReadingMap.get(String(sensor._id))?.computedStatus ?? null,
+      latestReadingAt: latestReadingMap.get(String(sensor._id))?.createdAt ?? null,
+      location: sensor.location,
+      lastSeenAt: sensor.lastSeenAt,
+      latestReading: latestReadingMap.get(String(sensor._id)) || null
+    }));
+
+    return NextResponse.json({ success: true, data });
+  } catch (e: any) {
+    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

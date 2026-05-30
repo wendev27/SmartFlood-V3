@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { applicationFormDefaultsMock, verificationApplicationsMock } from "@/data/verification.mock";
-import type { ModalMode, VerificationStatus } from "@/types/verification";
+import type { ModalMode, VerificationApplication, VerificationStatus } from "@/types/verification";
 import { Tabs } from "@/components/ui/Tabs/Tabs";
 import { Button } from "@/components/ui/Button/Button";
 import { ApplicationCard } from "@/components/verification/ApplicationCard/ApplicationCard";
@@ -16,11 +16,64 @@ export function VerificationPanel() {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
   const [applicationMode, setApplicationMode] = useState<ModalMode>("add");
+  const [applications, setApplications] = useState<VerificationApplication[]>(verificationApplicationsMock.map((application, index) => ({ ...application, id: `mock-${index}` })));
+  const [selectedApplication, setSelectedApplication] = useState<VerificationApplication | null>(null);
+
+  useEffect(() => {
+    fetchApplications();
+  }, []);
 
   const visibleApplications = useMemo(
-    () => verificationApplicationsMock.filter((application) => application.status === activeTab),
-    [activeTab],
+    () => applications.filter((application) => application.status === activeTab),
+    [activeTab, applications],
   );
+
+  const counts = useMemo(() => ({
+    pending: String(applications.filter((application) => application.status === "pending").length),
+    approved: String(applications.filter((application) => application.status === "approved").length),
+    rejected: String(applications.filter((application) => application.status === "rejected").length),
+  }), [applications]);
+
+  async function fetchApplications() {
+    const response = await fetch("/api/resident-applications");
+    const payload = await response.json();
+
+    if (!response.ok || !payload.success) {
+      return;
+    }
+
+    setApplications(payload.data.map(mapApplication));
+  }
+
+  async function reviewApplication(action: "approved" | "rejected") {
+    if (!selectedApplication) return;
+
+    const selectedFamilyId = selectedApplication.raw?.selected_family_id ?? selectedApplication.raw?.family_id;
+    const body: Record<string, unknown> = {
+      action,
+      admin_review_notes: action === "approved" ? "Approved from SmartFlood admin dashboard" : "Rejected from SmartFlood admin dashboard",
+    };
+
+    if (action === "approved" && !selectedApplication.raw?.is_family_head) {
+      body.selected_family_id = selectedFamilyId || window.prompt("Enter selected family ID for this resident");
+    }
+
+    const response = await fetch(`/api/resident-applications/${selectedApplication.id}/review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      window.alert(payload?.error ?? "Unable to review application");
+      return;
+    }
+
+    setIsReviewOpen(false);
+    setSelectedApplication(null);
+    await fetchApplications();
+  }
 
   const formValues = applicationMode === "add"
     ? {
@@ -54,9 +107,9 @@ export function VerificationPanel() {
         activeKey={activeTab}
         onChange={setActiveTab}
         items={[
-          { key: "pending", label: "Pending Review", count: "3", icon: <SmartFloodIcon name="pendingReview" size={20} /> },
-          { key: "approved", label: "Approved", count: "1", countTone: "green", icon: <SmartFloodIcon name="approved" size={20} /> },
-          { key: "rejected", label: "Rejected", count: "1", countTone: "red", icon: <SmartFloodIcon name="rejected" size={20} /> },
+          { key: "pending", label: "Pending Review", count: counts.pending, icon: <SmartFloodIcon name="pendingReview" size={20} /> },
+          { key: "approved", label: "Approved", count: counts.approved, countTone: "green", icon: <SmartFloodIcon name="approved" size={20} /> },
+          { key: "rejected", label: "Rejected", count: counts.rejected, countTone: "red", icon: <SmartFloodIcon name="rejected" size={20} /> },
         ]}
       />
       <div className={styles.list}>
@@ -64,7 +117,10 @@ export function VerificationPanel() {
           <ApplicationCard
             key={`${application.name}-${application.status}`}
             application={application}
-            onReview={() => setIsReviewOpen(true)}
+            onReview={() => {
+              setSelectedApplication(application);
+              setIsReviewOpen(true);
+            }}
             onEdit={application.status === "approved" ? () => {
               setApplicationMode("edit");
               setIsApplicationOpen(true);
@@ -72,7 +128,13 @@ export function VerificationPanel() {
           />
         ))}
       </div>
-      <ReviewModal isOpen={isReviewOpen} onClose={() => setIsReviewOpen(false)} />
+      <ReviewModal
+        isOpen={isReviewOpen}
+        application={selectedApplication}
+        onApprove={() => reviewApplication("approved")}
+        onReject={() => reviewApplication("rejected")}
+        onClose={() => setIsReviewOpen(false)}
+      />
       <ApplicationFormModal
         isOpen={isApplicationOpen}
         mode={applicationMode}
@@ -81,4 +143,29 @@ export function VerificationPanel() {
       />
     </section>
   );
+}
+
+function mapApplication(row: Record<string, unknown>): VerificationApplication {
+  const firstName = String(row.first_name ?? "");
+  const lastName = String(row.last_name ?? "");
+  const name = [firstName, row.middle_name, lastName].filter(Boolean).join(" ") || "Unnamed Applicant";
+  const initials = [firstName[0], lastName[0]].filter(Boolean).join("").toUpperCase() || "NA";
+
+  return {
+    id: String(row.id),
+    initials,
+    name,
+    status: (row.status === "approved" || row.status === "rejected" ? row.status : "pending") as VerificationStatus,
+    type: row.is_family_head ? "Family Head" : "Family Member",
+    barangay: String(row.barangay_name ?? row.barangay ?? ""),
+    familyMembers: String(row.total_family_members ?? ""),
+    submitted: String(row.created_at ?? row.submitted_at ?? ""),
+    phone: String(row.contact_number ?? ""),
+    address: String(row.complete_address ?? ""),
+    approvalNote: row.reviewed_at ? {
+      approvedBy: `Reviewed ${String(row.reviewed_at)}`,
+      details: String(row.admin_review_notes ?? ""),
+    } : undefined,
+    raw: row,
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   reliefAllocationHistoryMock,
   reliefInventoryMock,
@@ -19,6 +19,25 @@ export function ReliefPanel() {
   const [draftInventory, setDraftInventory] = useState<ReliefInventoryItem[]>(emptyReliefInventory);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReliefRecommendation | null>(null);
+  const [recommendations, setRecommendations] = useState<ReliefRecommendation[]>(reliefRecommendationsMock);
+  const [history, setHistory] = useState(reliefAllocationHistoryMock);
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, []);
+
+  async function fetchRecommendations() {
+    const response = await fetch("/api/ai/recommendations");
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.success) {
+      return;
+    }
+
+    const mapped = payload.data.map(mapRecommendation);
+    setRecommendations(mapped.length ? mapped : reliefRecommendationsMock);
+    setHistory(payload.data.map(mapHistory));
+  }
 
   function openInventoryModal() {
     setDraftInventory(inventory.map((item) => ({ ...item, quantity: 0 })));
@@ -35,9 +54,42 @@ export function ReliefPanel() {
     setDraftInventory((items) => items.map((item) => (item.id === itemId ? { ...item, quantity: 0 } : item)));
   }
 
-  function saveInventory() {
+  async function saveInventory() {
+    const payload = {
+      family_food_packs: quantityFor(draftInventory, "Food Pack"),
+      medicine_kits: quantityFor(draftInventory, "Medicine"),
+      relief_goods_individual: quantityFor(draftInventory, "Individual"),
+      items: draftInventory,
+    };
+
+    const response = await fetch("/api/relief/inventory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const result = await response.json().catch(() => null);
+      window.alert(result?.error ?? "Unable to save inventory");
+      return;
+    }
+
     setInventory(draftInventory);
     setIsInventoryOpen(false);
+  }
+
+  async function generateRecommendation() {
+    const response = await fetch("/api/ai/recommendations/generate", { method: "POST" });
+    const payload = await response.json().catch(() => null);
+
+    if (!response.ok || !payload?.success) {
+      window.alert(payload?.error ?? "Unable to generate recommendations");
+      return;
+    }
+
+    const mapped = payload.data.map(mapRecommendation);
+    setRecommendations(mapped);
+    setHistory(payload.data.map(mapHistory));
   }
 
   return (
@@ -50,7 +102,7 @@ export function ReliefPanel() {
               <p>Based on current flood data and affected population analysis</p>
             </div>
             <div className={styles.actions}>
-              <Button className={styles.actionButton}>Generate Recommendation</Button>
+              <Button className={styles.actionButton} onClick={generateRecommendation}>Generate Recommendation</Button>
               <Button className={styles.actionButton} onClick={openInventoryModal}>
                 Input Available Relief
               </Button>
@@ -58,7 +110,7 @@ export function ReliefPanel() {
           </div>
 
           <div className={styles.recommendationList}>
-            {reliefRecommendationsMock.map((recommendation) => (
+            {recommendations.map((recommendation) => (
               <article
                 className={styles.recommendationCard}
                 key={recommendation.id}
@@ -119,7 +171,7 @@ export function ReliefPanel() {
             ]}
             minWidth={760}
           >
-            {reliefAllocationHistoryMock.map((entry, index) => (
+            {history.map((entry, index) => (
               <tr key={`${entry.barangay}-${entry.date}-${index}`}>
                 <td>{entry.id}</td>
                 <td>{entry.date}</td>
@@ -217,4 +269,36 @@ export function ReliefPanel() {
       </Modal>
     </>
   );
+}
+
+function quantityFor(items: ReliefInventoryItem[], partialName: string) {
+  return items.find((item) => item.name.toLowerCase().includes(partialName.toLowerCase()))?.quantity ?? 0;
+}
+
+function mapRecommendation(row: Record<string, unknown>, index: number): ReliefRecommendation {
+  const foodPacks = Number(row.recommended_family_food_packs ?? 0);
+  const medicineKits = Number(row.recommended_medicine_kits ?? 0);
+  const individualGoods = Number(row.recommended_relief_goods_individual ?? 0);
+
+  return {
+    id: String(index + 1),
+    barangay: String(row.barangay_name ?? row.barangay ?? "Unknown"),
+    recommendedItems: `${foodPacks} food packs, ${medicineKits} medicine kits, ${individualGoods} individual goods`,
+    analysisReason: String(row.analysis_reason ?? `${row.risk_level ?? "normal"} risk, priority score ${row.priority_score ?? 0}`),
+    report: String(row.analysis_reason ?? JSON.stringify(row, null, 2)),
+  };
+}
+
+function mapHistory(row: Record<string, unknown>, index: number) {
+  const createdAt = row.created_at ? new Date(String(row.created_at)) : new Date();
+
+  return {
+    id: String(row.id ?? index + 1),
+    date: createdAt.toLocaleDateString(),
+    time: createdAt.toLocaleTimeString(),
+    barangay: String(row.barangay_name ?? row.barangay ?? "Unknown"),
+    familyFoodPacks: Number(row.recommended_family_food_packs ?? 0),
+    medicineKits: Number(row.recommended_medicine_kits ?? 0),
+    reliefForIndividual: Number(row.recommended_relief_goods_individual ?? 0),
+  };
 }

@@ -1,44 +1,63 @@
-import { residentsMock } from "@/data/residents.mock";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
+import { residentsMock } from "@/data/residents.mock";
 import styles from "./ResidentsPanel.module.css";
 
-const familyClusters = [
-  {
-    id: "001",
-    familyName: "Divina Family",
-    familyHead: "Rich Divina",
-    pwd: 1,
-    elderly: 2,
-    fourPs: 0,
-    lactating: 0,
-    pregnant: 0,
-    infant: 1,
-  },
-  {
-    id: "002",
-    familyName: "Bitago Family",
-    familyHead: "Gerald Bitago",
-    pwd: 0,
-    elderly: 0,
-    fourPs: 0,
-    lactating: 0,
-    pregnant: 0,
-    infant: 0,
-  },
-  {
-    id: "003",
-    familyName: "Lagudgud Family",
-    familyHead: "Nessy Lagudgud",
-    pwd: 0,
-    elderly: 1,
-    fourPs: 0,
-    lactating: 0,
-    pregnant: 0,
-    infant: 0,
-  },
-];
+type ResidentRow = {
+  id: string;
+  name: string;
+  age: number | string;
+  sex: string;
+  address: string;
+  barangay: string;
+  contact: string;
+  selected?: boolean;
+};
+
+type FamilyRow = {
+  id: string;
+  familyName: string;
+  familyHead: string;
+  pwd: number;
+  elderly: number;
+  fourPs: number;
+  lactating: number;
+  pregnant: number;
+  infant: number;
+};
 
 export function ResidentsPanel() {
+  const [residents, setResidents] = useState<ResidentRow[]>(residentsMock);
+  const [familyClusters, setFamilyClusters] = useState<FamilyRow[]>([]);
+  const [familySearch, setFamilySearch] = useState("");
+
+  useEffect(() => {
+    fetch("/api/residents")
+      .then((response) => response.json())
+      .then((payload) => {
+        if (payload.success) {
+          setResidents(payload.data.map(mapResident));
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const query = familySearch ? `?search=${encodeURIComponent(familySearch)}` : "";
+    fetch(`/api/families${query}`)
+      .then((response) => response.json())
+      .then((payload) => {
+        if (payload.success) {
+          setFamilyClusters(payload.data.map(mapFamily));
+        }
+      })
+      .catch(() => undefined);
+  }, [familySearch]);
+
+  const displayedResidents = useMemo(() => residents, [residents]);
+
   return (
     <section className={styles.panel} aria-label="Resident information">
       <div className={styles.scrollArea}>
@@ -72,7 +91,7 @@ export function ResidentsPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {residentsMock.map((resident, index) => (
+                  {displayedResidents.map((resident, index) => (
                     <tr key={resident.id} className={cn(resident.selected && styles.selected)}>
                       <td>{String(index + 1).padStart(3, "0")}</td>
                       <td>
@@ -104,7 +123,12 @@ export function ResidentsPanel() {
               <label className={styles.searchField}>
                 <span className="srOnly">Search family clusters</span>
                 <span className={styles.searchIcon} aria-hidden="true" />
-                <input type="search" placeholder="Search by name, ID, address, age, sex, or contact..." />
+                <input
+                  type="search"
+                  placeholder="Search by name, ID, address, age, sex, or contact..."
+                  value={familySearch}
+                  onChange={(event) => setFamilySearch(event.target.value)}
+                />
               </label>
             </div>
 
@@ -147,4 +171,30 @@ export function ResidentsPanel() {
       </div>
     </section>
   );
+}
+
+function mapResident(row: Record<string, unknown>): ResidentRow {
+  return {
+    id: String(row.id),
+    name: [row.first_name, row.middle_name, row.last_name, row.suffix].filter(Boolean).join(" "),
+    age: String(row.age ?? ""),
+    sex: String(row.sex ?? ""),
+    address: String(row.complete_address ?? ""),
+    barangay: String(row.barangay_name ?? ""),
+    contact: String(row.contact_number ?? ""),
+  };
+}
+
+function mapFamily(row: Record<string, unknown>): FamilyRow {
+  return {
+    id: String(row.id),
+    familyName: String(row.family_name ?? ""),
+    familyHead: String(row.family_head_name ?? ""),
+    pwd: Number(row.pwd_count ?? 0),
+    elderly: Number(row.elderly_count ?? 0),
+    fourPs: Number(row.four_ps_count ?? 0),
+    lactating: Number(row.lactating_count ?? 0),
+    pregnant: Number(row.pregnant_count ?? 0),
+    infant: Number(row.infant_count ?? 0),
+  };
 }
