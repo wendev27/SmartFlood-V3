@@ -2,6 +2,7 @@ export type VerificationStatus = "pending" | "approved" | "rejected";
 export type ModalMode = "add" | "edit";
 
 export interface VerificationApplication {
+  id?: string;
   initials: string;
   name: string;
   status: VerificationStatus;
@@ -15,6 +16,7 @@ export interface VerificationApplication {
     approvedBy: string;
     details: string;
   };
+  raw?: Record<string, unknown>;
 }
 
 export interface ApplicationFormValues {
