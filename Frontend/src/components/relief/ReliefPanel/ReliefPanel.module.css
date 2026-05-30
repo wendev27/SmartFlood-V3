@@ -58,6 +58,25 @@
   white-space: nowrap;
 }
 
+.stateMessage,
+.errorMessage {
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
+.stateMessage {
+  background: #eef6ff;
+  color: #175cd3;
+}
+
+.errorMessage {
+  background: #fef3f2;
+  color: #b42318;
+}
+
 .recommendationList {
   display: grid;
   gap: 18px;

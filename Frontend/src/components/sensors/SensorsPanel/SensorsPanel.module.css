@@ -46,6 +46,16 @@
   height: 44px;
 }
 
+.errorMessage {
+  background: #fef3f2;
+  border-radius: 8px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
 @media (min-width: 900px) {
   .toolbar {
     grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(140px, 1fr)) minmax(90px, 0.5fr);

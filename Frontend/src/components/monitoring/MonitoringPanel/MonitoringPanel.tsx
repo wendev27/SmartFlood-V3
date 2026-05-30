@@ -185,7 +185,7 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
               <em>Warning</em>
             </span>
             {waterLevels.map((item) => (
-              <div className={styles.barSlot} key={item.id}>
+              <div className={styles.barSlot} key={item.label}>
                 <span
                   className={`${styles.bar} ${styles[item.tone]}`}
                   style={{ height: `${item.height}%` }}

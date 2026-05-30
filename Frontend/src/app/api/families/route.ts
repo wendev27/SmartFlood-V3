@@ -1,14 +1,18 @@
 // GET/POST /api/families
-import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/lib/supabaseServer';
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const barangay_id = searchParams.get('barangay_id');
-    const search = searchParams.get('search');
-    let query = supabaseServer.from('families').select('*');
-    if (barangay_id) query = query.eq('barangay_id', barangay_id);
+    const barangay_id = searchParams.get("barangay_id");
+    const search = searchParams.get("search");
+    let query = supabaseServer
+      .from("families")
+      .select("family_id,family_name,family_head_id,family_head_name,barangay_id,barangay_name,street,complete_address,pwd_count,elderly_count,four_ps_count,lactating_count,pregnant_count,infant_count,toddler_count,no_children,total_family_members,created_at,updated_at")
+      .order("created_at", { ascending: false });
+
+    if (barangay_id) query = query.eq("barangay_id", barangay_id);
     if (search) {
       query = query.or(`family_name.ilike.%${search}%,family_head_name.ilike.%${search}%,complete_address.ilike.%${search}%,street.ilike.%${search}%`);
     }

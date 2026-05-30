@@ -9,6 +9,16 @@
   margin-bottom: 22px;
 }
 
+.errorMessage {
+  background: #fef3f2;
+  border-radius: 8px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
 .mapSection {
   max-width: 900px;
 }

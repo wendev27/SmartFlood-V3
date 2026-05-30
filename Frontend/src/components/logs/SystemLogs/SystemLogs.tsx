@@ -1,21 +1,42 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { auditLogsMock } from "@/data/logs.mock";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
+import { getAuditLogs } from "@/services/logsService";
+import type { AuditLog } from "@/types/logs";
 import styles from "./SystemLogs.module.css";
 
 export function SystemLogs() {
   const [query, setQuery] = useState("");
+  const [logsSource, setLogsSource] = useState<AuditLog[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      const data = await getAuditLogs();
+      if (!cancelled) {
+        setLogsSource(data as AuditLog[]);
+        setIsLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const logs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     if (!normalizedQuery) {
-      return auditLogsMock.slice(0, 6);
+      return logsSource.slice(0, 6);
     }
 
-    return auditLogsMock.filter((log) =>
+    return logsSource.filter((log) =>
       [log.title, log.department, log.action, log.timestamp, log.user, log.description]
         .join(" ")
         .toLowerCase()
@@ -47,8 +68,8 @@ export function SystemLogs() {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => (
-              <tr key={`${log.timestamp}-${log.title}`}>
+            {logs.map((log, index) => (
+              <tr key={`${log.timestamp}-${log.title}-${index}`}>
                 <td className={styles.event}>{log.title.toUpperCase()}</td>
                 <td>{log.department}</td>
                 <td>{log.action}</td>
@@ -60,7 +81,14 @@ export function SystemLogs() {
                 </td>
               </tr>
             ))}
-            {logs.length === 0 ? (
+            {isLoading ? (
+              <tr>
+                <td className={styles.empty} colSpan={5}>
+                  Loading system logs...
+                </td>
+              </tr>
+            ) : null}
+            {!isLoading && logs.length === 0 ? (
               <tr>
                 <td className={styles.empty} colSpan={5}>
                   No system logs found.

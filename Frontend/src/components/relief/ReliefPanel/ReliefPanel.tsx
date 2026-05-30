@@ -1,43 +1,58 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  reliefAllocationHistoryMock,
-  reliefInventoryMock,
-  reliefRecommendationsMock,
-} from "@/data/relief.mock";
 import { Button } from "@/components/ui/Button/Button";
 import { DataTable } from "@/components/ui/DataTable/DataTable";
 import { Modal } from "@/components/ui/Modal/Modal";
+import {
+  generateReliefRecommendations,
+  getReliefInventory,
+  getReliefRecommendations,
+  saveReliefInventory,
+} from "@/services/reliefService";
 import type { ReliefInventoryItem, ReliefRecommendation } from "@/types/relief";
 import styles from "./ReliefPanel.module.css";
 
-const emptyReliefInventory = reliefInventoryMock.map((item) => ({ ...item, quantity: 0 }));
-
 export function ReliefPanel() {
-  const [inventory, setInventory] = useState<ReliefInventoryItem[]>(emptyReliefInventory);
-  const [draftInventory, setDraftInventory] = useState<ReliefInventoryItem[]>(emptyReliefInventory);
+  const [inventory, setInventory] = useState<ReliefInventoryItem[]>([]);
+  const [draftInventory, setDraftInventory] = useState<ReliefInventoryItem[]>([]);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReliefRecommendation | null>(null);
-  const [recommendations, setRecommendations] = useState<ReliefRecommendation[]>(reliefRecommendationsMock);
-  const [history, setHistory] = useState(reliefAllocationHistoryMock);
+  const [recommendations, setRecommendations] = useState<ReliefRecommendation[]>([]);
+  const [history, setHistory] = useState<ReturnType<typeof mapHistory>[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
-    fetchRecommendations();
-  }, []);
+    let cancelled = false;
 
-  async function fetchRecommendations() {
-    const response = await fetch("/api/ai/recommendations");
-    const payload = await response.json().catch(() => null);
+    async function load() {
+      setIsLoading(true);
+      setError("");
+      try {
+        const [recommendationRows, inventoryRows] = await Promise.all([
+          getReliefRecommendations(),
+          getReliefInventory(),
+        ]);
 
-    if (!response.ok || !payload?.success) {
-      return;
+        if (cancelled) return;
+
+        setRecommendations(recommendationRows.map(mapRecommendation));
+        setHistory(recommendationRows.map(mapHistory));
+        setInventory(mapInventoryRows(inventoryRows));
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load relief data.");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     }
 
-    const mapped = payload.data.map(mapRecommendation);
-    setRecommendations(mapped.length ? mapped : reliefRecommendationsMock);
-    setHistory(payload.data.map(mapHistory));
-  }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function openInventoryModal() {
     setDraftInventory(inventory.map((item) => ({ ...item, quantity: 0 })));
@@ -62,15 +77,10 @@ export function ReliefPanel() {
       items: draftInventory,
     };
 
-    const response = await fetch("/api/relief/inventory", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const result = await response.json().catch(() => null);
-      window.alert(result?.error ?? "Unable to save inventory");
+    try {
+      await saveReliefInventory(payload);
+    } catch (saveError) {
+      window.alert(saveError instanceof Error ? saveError.message : "Unable to save inventory");
       return;
     }
 
@@ -79,17 +89,18 @@ export function ReliefPanel() {
   }
 
   async function generateRecommendation() {
-    const response = await fetch("/api/ai/recommendations/generate", { method: "POST" });
-    const payload = await response.json().catch(() => null);
-
-    if (!response.ok || !payload?.success) {
-      window.alert(payload?.error ?? "Unable to generate recommendations");
-      return;
+    setIsGenerating(true);
+    setError("");
+    try {
+      const rows = await generateReliefRecommendations();
+      const mapped = rows.map(mapRecommendation);
+      setRecommendations(mapped);
+      setHistory(rows.map(mapHistory));
+    } catch (generateError) {
+      window.alert(generateError instanceof Error ? generateError.message : "Unable to generate recommendations");
+    } finally {
+      setIsGenerating(false);
     }
-
-    const mapped = payload.data.map(mapRecommendation);
-    setRecommendations(mapped);
-    setHistory(payload.data.map(mapHistory));
   }
 
   return (
@@ -102,12 +113,16 @@ export function ReliefPanel() {
               <p>Based on current flood data and affected population analysis</p>
             </div>
             <div className={styles.actions}>
-              <Button className={styles.actionButton} onClick={generateRecommendation}>Generate Recommendation</Button>
+              <Button className={styles.actionButton} onClick={generateRecommendation} disabled={isGenerating}>
+                {isGenerating ? "Generating..." : "Generate Recommendation"}
+              </Button>
               <Button className={styles.actionButton} onClick={openInventoryModal}>
                 Input Available Relief
               </Button>
             </div>
           </div>
+          {error ? <p className={styles.errorMessage}>{error}</p> : null}
+          {isLoading ? <p className={styles.stateMessage}>Loading relief data...</p> : null}
 
           <div className={styles.recommendationList}>
             {recommendations.map((recommendation, index) => (
@@ -151,6 +166,9 @@ export function ReliefPanel() {
                 </div>
               </article>
             ))}
+            {!isLoading && recommendations.length === 0 ? (
+              <p className={styles.stateMessage}>No recommendations found.</p>
+            ) : null}
           </div>
         </div>
 
@@ -182,6 +200,11 @@ export function ReliefPanel() {
                 <td>{entry.reliefForIndividual}</td>
               </tr>
             ))}
+            {!isLoading && history.length === 0 ? (
+              <tr>
+                <td colSpan={7}>No allocation history found.</td>
+              </tr>
+            ) : null}
           </DataTable>
         </div>
       </section>
@@ -217,8 +240,8 @@ export function ReliefPanel() {
                       min={0}
                       type="number"
                       value={item.quantity}
-                      onChange={(event) => updateDraftQuantity(item.id, Number(event.target.value))}
-                    />
+                    onChange={(event) => updateDraftQuantity(item.id, Number(event.target.value))}
+                  />
                     <small>{item.unit}</small>
                   </label>
                   <button
@@ -304,5 +327,54 @@ function mapHistory(row: Record<string, unknown>, index: number) {
     familyFoodPacks: Number(row.recommended_family_food_packs ?? 0),
     medicineKits: Number(row.recommended_medicine_kits ?? 0),
     reliefForIndividual: Number(row.recommended_relief_goods_individual ?? 0),
+  };
+}
+
+function mapInventoryRows(rows: Record<string, unknown>[]): ReliefInventoryItem[] {
+  const latest = rows[0];
+
+  if (Array.isArray(latest?.items)) {
+    return latest.items.map((item, index) => mapInventoryItem(item as Record<string, unknown>, index));
+  }
+
+  if (latest && ("family_food_packs" in latest || "medicine_kits" in latest || "relief_goods_individual" in latest)) {
+    return [
+      {
+        inventory_id: `${latest.inventory_id ?? "current"}-food-packs`,
+        id: "family-food-packs",
+        name: "Family Food Pack",
+        unit: "packs",
+        quantity: Number(latest.family_food_packs ?? 0),
+      },
+      {
+        inventory_id: `${latest.inventory_id ?? "current"}-medicine-kits`,
+        id: "medicine-kits",
+        name: "Medicine Kit",
+        unit: "kits",
+        quantity: Number(latest.medicine_kits ?? 0),
+      },
+      {
+        inventory_id: `${latest.inventory_id ?? "current"}-individual-goods`,
+        id: "relief-goods-individual",
+        name: "Relief Goods Individual",
+        unit: "pcs",
+        quantity: Number(latest.relief_goods_individual ?? 0),
+      },
+    ];
+  }
+
+  return rows.map(mapInventoryItem);
+}
+
+function mapInventoryItem(row: Record<string, unknown>, index: number): ReliefInventoryItem {
+  const inventoryId = row.inventory_id ? String(row.inventory_id) : undefined;
+  const name = String(row.item_name ?? row.name ?? `Inventory Item ${index + 1}`);
+
+  return {
+    inventory_id: inventoryId,
+    id: inventoryId ?? `${name}-${index}`,
+    name,
+    unit: String(row.unit ?? "pcs"),
+    quantity: Number(row.quantity ?? 0),
   };
 }

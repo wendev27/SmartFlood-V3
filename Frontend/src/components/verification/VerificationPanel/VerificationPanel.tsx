@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { applicationFormDefaultsMock, verificationApplicationsMock } from "@/data/verification.mock";
-import type { ModalMode, VerificationApplication, VerificationStatus } from "@/types/verification";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ApplicationFormValues, ModalMode, VerificationApplication, VerificationStatus } from "@/types/verification";
+import { fetchJson } from "@/services/apiClient";
 import { Tabs } from "@/components/ui/Tabs/Tabs";
 import { Button } from "@/components/ui/Button/Button";
 import { ApplicationCard } from "@/components/verification/ApplicationCard/ApplicationCard";
@@ -16,11 +16,44 @@ export function VerificationPanel() {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
   const [applicationMode, setApplicationMode] = useState<ModalMode>("add");
-  const [applications, setApplications] = useState<VerificationApplication[]>(verificationApplicationsMock.map((application, index) => ({ ...application, application_id: `mock-${index}` })));
+  const [applications, setApplications] = useState<VerificationApplication[]>([]);
   const [selectedApplication, setSelectedApplication] = useState<VerificationApplication | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchApplications = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const data = await fetchJson<Record<string, unknown>[]>("/api/resident-applications");
+      setApplications(data.map(mapApplication));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load applications.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetchApplications();
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      setError("");
+      try {
+        const data = await fetchJson<Record<string, unknown>[]>("/api/resident-applications");
+        if (!cancelled) setApplications(data.map(mapApplication));
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load applications.");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const visibleApplications = useMemo(
@@ -33,17 +66,6 @@ export function VerificationPanel() {
     approved: String(applications.filter((application) => application.status === "approved").length),
     rejected: String(applications.filter((application) => application.status === "rejected").length),
   }), [applications]);
-
-  async function fetchApplications() {
-    const response = await fetch("/api/resident-applications");
-    const payload = await response.json();
-
-    if (!response.ok || !payload.success) {
-      return;
-    }
-
-    setApplications(payload.data.map(mapApplication));
-  }
 
   async function reviewApplication(action: "approved" | "rejected") {
     if (!selectedApplication) return;
@@ -58,15 +80,14 @@ export function VerificationPanel() {
       body.selected_family_id = selectedFamilyId || window.prompt("Enter selected family ID for this resident");
     }
 
-    const response = await fetch(`/api/resident-applications/${selectedApplication.application_id}/review`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      window.alert(payload?.error ?? "Unable to review application");
+    try {
+      await fetchJson(`/api/resident-applications/${selectedApplication.application_id}/review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (reviewError) {
+      window.alert(reviewError instanceof Error ? reviewError.message : "Unable to review application");
       return;
     }
 
@@ -75,22 +96,22 @@ export function VerificationPanel() {
     await fetchApplications();
   }
 
-  const formValues = applicationMode === "add"
-    ? {
-        surname: "",
-        firstName: "",
-        middleName: "",
-        contactNumber: "",
-        ageSex: "",
-        occupation: "",
-        completeAddress: "",
-        barangay: "",
-        totalFamilyMembers: "",
-        householdHead: "",
-        specialNeeds: "",
-        medicalConditions: "",
-      }
-    : applicationFormDefaultsMock;
+  const emptyFormValues: ApplicationFormValues = {
+    surname: "",
+    firstName: "",
+    middleName: "",
+    contactNumber: "",
+    ageSex: "",
+    occupation: "",
+    completeAddress: "",
+    barangay: "",
+    totalFamilyMembers: "",
+    householdHead: "",
+    specialNeeds: "",
+    medicalConditions: "",
+  };
+
+  const formValues = emptyFormValues;
 
   return (
     <section className={styles.panel} aria-label="Resident account verification">
@@ -112,6 +133,8 @@ export function VerificationPanel() {
           { key: "rejected", label: "Rejected", count: counts.rejected, countTone: "red", icon: <SmartFloodIcon name="rejected" size={20} /> },
         ]}
       />
+      {error ? <p className={styles.errorMessage}>{error}</p> : null}
+      {isLoading ? <p className={styles.stateMessage}>Loading applications...</p> : null}
       <div className={styles.list}>
         {visibleApplications.map((application, index) => (
           <ApplicationCard
@@ -127,6 +150,9 @@ export function VerificationPanel() {
             } : undefined}
           />
         ))}
+        {!isLoading && visibleApplications.length === 0 ? (
+          <p className={styles.stateMessage}>No applications found.</p>
+        ) : null}
       </div>
       <ReviewModal
         isOpen={isReviewOpen}

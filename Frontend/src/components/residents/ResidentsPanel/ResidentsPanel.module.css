@@ -113,7 +113,8 @@
 }
 
 .filterButton,
-.editButton {
+.editButton,
+.addButton {
   align-items: center;
   border: 0;
   display: inline-flex;
@@ -130,6 +131,14 @@
   gap: 8px;
   min-height: 40px;
   padding: 0 17px;
+}
+
+.addButton {
+  background: #0966ff;
+  border-radius: 8px;
+  color: #ffffff;
+  min-height: 40px;
+  padding: 0 16px;
 }
 
 .filterIcon {
@@ -221,10 +230,177 @@
   box-shadow: inset 3px 0 0 #0095ff;
 }
 
+.successMessage,
+.errorMessage {
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+}
+
+.successMessage {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.errorMessage {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.residentDialog {
+  max-width: 980px;
+}
+
+.modalHeader {
+  align-items: center;
+  background: #0966ff;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  padding: 24px 28px;
+}
+
+.modalHeader h2 {
+  font-size: 18px;
+  margin: 0 0 4px;
+}
+
+.modalHeader p {
+  font-size: 12px;
+  margin: 0;
+}
+
+.closeButton {
+  background: transparent;
+  border: 0;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.residentForm {
+  padding: 26px 28px 28px;
+}
+
+.formSection {
+  margin-bottom: 24px;
+}
+
+.formSection h3 {
+  align-items: center;
+  color: #111827;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.formSection h3 span {
+  border: 2px solid #0966ff;
+  border-radius: 50%;
+  height: 14px;
+  width: 14px;
+}
+
+.formGrid,
+.countGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.formGrid label,
+.countGrid label {
+  color: #111827;
+  display: grid;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.formGrid input,
+.formGrid select,
+.countGrid input {
+  background: #ffffff;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+  color: #111827;
+  font-size: 12px;
+  min-height: 40px;
+  outline: 0;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.formGrid input:focus,
+.formGrid select:focus,
+.countGrid input:focus {
+  border-color: #83b7ff;
+  box-shadow: 0 0 0 3px rgba(21, 93, 255, 0.12);
+}
+
+.checkboxLabel,
+.noChildren {
+  align-items: center;
+  display: inline-flex;
+  flex-direction: row;
+  gap: 8px;
+}
+
+.checkboxLabel input,
+.noChildren input {
+  min-height: auto;
+  width: auto;
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+.helperText {
+  color: #0966ff;
+  font-size: 11px;
+  font-weight: 800;
+  margin: 0 0 14px;
+}
+
+.noChildren {
+  background: #eff6ff;
+  border-radius: 8px;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 14px;
+  padding: 12px 14px;
+  width: 100%;
+}
+
+.formActions {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+
 @media (min-width: 700px) {
   .toolbar {
     align-items: center;
     flex-direction: row;
+  }
+
+  .formGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .countGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .formActions {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

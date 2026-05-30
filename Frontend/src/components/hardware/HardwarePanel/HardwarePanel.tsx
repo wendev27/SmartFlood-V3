@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { hardwareStatusMock } from "@/data/hardware.mock";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button/Button";
 import { ControlCard } from "@/components/hardware/ControlCard/ControlCard";
 import { SensorsPanel } from "@/components/sensors/SensorsPanel/SensorsPanel";
 import { SmartFloodIcon, type SmartFloodIconName } from "@/components/icons/SmartFloodIcon";
+import { getSensors } from "@/services/sensorsService";
 import styles from "./HardwarePanel.module.css";
 
 export function HardwarePanel() {
@@ -56,8 +56,45 @@ export function HardwarePanel() {
 }
 
 function HardwareConfiguration() {
+  const [sensorRows, setSensorRows] = useState<Record<string, unknown>[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      setError("");
+      try {
+        const rows = await getSensors();
+        if (!cancelled) setSensorRows(rows);
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load hardware status.");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const latestSensor = sensorRows[0];
+  const waterLevel = latestSensor?.waterLevelM == null ? null : Number(latestSensor.waterLevelM);
+  const lastUpdate = String(latestSensor?.latestReadingAt ?? latestSensor?.lastSeenAt ?? "No updates");
+  const deviceStatus = sensorRows.some((sensor) => String(sensor.status).toLowerCase() === "active") ? "Connected" : "Disconnected";
+  const logs = useMemo(() => sensorRows.slice(0, 4).map((sensor) => ({
+    time: String(sensor.latestReadingAt ?? sensor.lastSeenAt ?? "No timestamp"),
+    message: `${sensor.name ?? sensor.sensorId ?? "Sensor"}: ${sensor.waterLevelM ?? "no"}m`,
+    tone: String(sensor.computedStatus ?? "").toLowerCase().includes("critical") ? "blue" : "green",
+  })), [sensorRows]);
+
   return (
     <section className={styles.panel} aria-label="Arduino control panel">
+      {error ? <p className={styles.errorMessage}>{error}</p> : null}
       <div className={styles.topRow}>
         <ControlCard label="DEVICE CONTROL">
           <Button className={styles.connectButton} tone="success"><span className={styles.wifiMark} />Connect via WiFi</Button>
@@ -76,24 +113,25 @@ function HardwareConfiguration() {
       <div className={styles.monitorRow}>
         <ControlCard label="DEVICE STATUS">
           <div className={styles.statusStack}>
-            <div className={styles.statusBox}><span>ESP32 Status</span><b className={styles.offline}>{hardwareStatusMock.esp32Status}</b><i /></div>
-            <div className={styles.statusBox}><span>Status</span><b>{hardwareStatusMock.status}</b></div>
-            <div className={styles.statusBox}><span>Last Update</span><b>{hardwareStatusMock.lastUpdate}</b></div>
+            <div className={styles.statusBox}><span>ESP32 Status</span><b className={styles.offline}>{isLoading ? "Loading" : deviceStatus}</b><i /></div>
+            <div className={styles.statusBox}><span>Status</span><b>{isLoading ? "Loading" : `${sensorRows.length} sensor nodes`}</b></div>
+            <div className={styles.statusBox}><span>Last Update</span><b>{lastUpdate}</b></div>
           </div>
         </ControlCard>
         <ControlCard label="SENSOR MONITOR">
-          <Meter label="Water Level" value={hardwareStatusMock.waterLevel} percent={hardwareStatusMock.waterLevelPercent} min="0m" max="10m" />
-          <Meter label="Update Interval" value={hardwareStatusMock.updateInterval} percent={hardwareStatusMock.updateIntervalPercent} min="5s" max="60s" />
+          <Meter label="Water Level" value={waterLevel == null ? "No reading" : `${waterLevel.toFixed(2)}m`} percent={waterLevel == null ? 0 : Math.min(100, (waterLevel / 10) * 100)} min="0m" max="10m" />
+          <Meter label="Update Interval" value={isLoading ? "Loading" : "Live API"} percent={isLoading ? 0 : 100} min="5s" max="60s" />
         </ControlCard>
         <ControlCard label="LIVE LOGS">
           <div className={styles.logStack}>
-            {hardwareStatusMock.logs.map((log) => (
+            {logs.map((log, index) => (
               <p key={`${log.time}-${log.message}`}>
                 <span>{log.time}</span>
                 <i className={styles[`${log.tone}Dot`]} />
                 {log.message}
               </p>
             ))}
+            {!isLoading && logs.length === 0 ? <p>No live sensor logs found.</p> : null}
           </div>
           <div className={styles.logFade} />
         </ControlCard>

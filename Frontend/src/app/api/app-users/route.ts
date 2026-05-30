@@ -4,8 +4,8 @@ import { supabaseServer } from "@/lib/supabaseServer";
 export async function GET() {
   try {
     const { data, error } = await supabaseServer
-      .from("ai_recommendations")
-      .select("recommendation_id,barangay_id,barangay_name,risk_level,priority_score,recommended_family_food_packs,recommended_medicine_kits,recommended_relief_goods_individual,analysis_reason,created_at")
+      .from("app_users")
+      .select("id,first_name,last_name,mobile_number,address,created_at,updated_at,barangay,sex,role_id,barangay_id,status")
       .order("created_at", { ascending: false });
 
     if (error) {

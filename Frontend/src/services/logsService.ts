@@ -1,10 +1,9 @@
-import { accountUsersMock, auditLogsMock } from "@/data/logs.mock";
-import { apiClient } from "@/services/apiClient";
+import { fetchJson } from "@/services/apiClient";
 
 export async function getAccountUsers() {
-  return apiClient(accountUsersMock);
+  return fetchJson<Record<string, unknown>[]>("/api/app-users");
 }
 
 export async function getAuditLogs() {
-  return apiClient(auditLogsMock);
+  return Promise.resolve([]);
 }
