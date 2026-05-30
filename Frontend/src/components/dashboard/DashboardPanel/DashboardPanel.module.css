@@ -1,0 +1,35 @@
+.dashboard {
+  max-width: 940px;
+}
+
+.statsGrid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 1fr;
+  margin-bottom: 22px;
+}
+
+.mapSection {
+  max-width: 900px;
+}
+
+@media (min-width: 680px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(210px, 300px));
+  }
+}
+
+@media (min-width: 900px) {
+  .dashboard {
+    padding-top: 10px;
+  }
+
+  .statsGrid {
+    gap: clamp(24px, 2.2vw, 34px);
+    margin-bottom: 22px;
+  }
+
+  .mapSection {
+    max-width: min(900px, 74vw);
+  }
+}

@@ -1,0 +1,33 @@
+.backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: auto;
+  padding: 24px;
+  position: fixed;
+  z-index: var(--z-modal);
+}
+
+.dialog {
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  max-height: calc(100dvh - 48px);
+  max-width: 1060px;
+  overflow: auto;
+  width: min(calc(100vw - 48px), 1060px);
+}
+
+@media (max-width: 520px) {
+  .backdrop {
+    padding: 14px;
+  }
+
+  .dialog {
+    border-radius: 8px;
+    max-height: calc(100dvh - 28px);
+    width: min(calc(100vw - 28px), 1060px);
+  }
+}

@@ -1,0 +1,122 @@
+.map {
+  background: #1f1f1f;
+  border-radius: 8px;
+  height: auto;
+  min-height: 250px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.dashboard {
+  aspect-ratio: 2.25 / 1;
+}
+
+.wide {
+  height: 286px;
+  min-height: 0;
+}
+
+.label {
+  color: rgba(255, 255, 255, 0.34);
+  font-size: 10px;
+  position: absolute;
+}
+
+.caloocan {
+  left: 9%;
+  top: 31%;
+}
+
+.quezon {
+  left: 7%;
+  top: 57%;
+}
+
+.pin {
+  background: #0084dd;
+  border-radius: 50%;
+  box-shadow: 0 0 0 19px rgba(0, 149, 255, 0.18);
+  display: grid;
+  height: 42px;
+  left: 13%;
+  place-items: center;
+  position: absolute;
+  top: 50%;
+  width: 42px;
+}
+
+.pin span {
+  border: 3px solid #ffffff;
+  border-radius: 50% 50% 50% 0;
+  height: 19px;
+  position: relative;
+  transform: rotate(-45deg);
+  width: 19px;
+}
+
+.pin span::after {
+  background: #ffffff;
+  border-radius: 50%;
+  content: "";
+  height: 5px;
+  left: 4px;
+  position: absolute;
+  top: 4px;
+  width: 5px;
+}
+
+.legend {
+  background: rgba(255, 255, 255, 0.13);
+  border-radius: 10px;
+  bottom: 16px;
+  color: #ffffff;
+  padding: 12px;
+  position: absolute;
+  right: 16px;
+  width: 110px;
+}
+
+.legend h3 {
+  font-size: 9px;
+  margin: 0 0 10px;
+}
+
+.legend p {
+  align-items: center;
+  display: flex;
+  font-size: 8px;
+  gap: 5px;
+  margin: 0 0 7px;
+}
+
+.dot {
+  border-radius: 50%;
+  display: inline-block;
+  height: 8px;
+  width: 8px;
+}
+
+.normal {
+  background: #15cf49;
+}
+
+.warning {
+  background: #ffb700;
+}
+
+.critical {
+  background: #ff4343;
+}
+
+@media (min-width: 900px) {
+  .dashboard {
+    aspect-ratio: auto;
+    height: clamp(290px, 36vh, 360px);
+    min-height: 290px;
+  }
+
+  .wide {
+    height: clamp(260px, 30vh, 330px);
+  }
+}

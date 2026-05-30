@@ -1,0 +1,1133 @@
+.panel {
+  min-height: calc(100vh - 220px);
+  padding-top: clamp(26px, 4vh, 58px);
+  width: 100%;
+}
+
+.moduleCards {
+  display: grid;
+  gap: clamp(18px, 1.6vw, 28px);
+  grid-template-columns: 1fr;
+  margin: 0 auto;
+  max-width: 100%;
+  width: 100%;
+}
+
+.moduleCard {
+  background: #ffffff;
+  border-radius: 9px;
+  box-shadow: 0 13px 21px rgba(15, 23, 42, 0.13);
+  color: #0a3f78;
+  min-height: 208px;
+  padding: 32px 22px 26px;
+}
+
+.moduleIcon {
+  align-items: center;
+  background: #067bea;
+  border-radius: 10px;
+  box-shadow: 0 12px 20px rgba(0, 91, 204, 0.28);
+  color: #ffffff;
+  display: flex;
+  height: 64px;
+  justify-content: center;
+  margin: 0 auto 28px;
+  width: 64px;
+}
+
+.moduleCard strong {
+  color: #004b88;
+  display: block;
+  font-size: 17px;
+  line-height: 1.2;
+  margin: 0 0 14px;
+}
+
+.moduleCard p {
+  color: #4e6077;
+  font-size: 11px;
+  line-height: 1.55;
+  margin: 0 0 8px;
+  max-width: 210px;
+}
+
+.moduleCard a,
+.openButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #00a4ff;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 4px;
+  line-height: 1;
+  padding: 0;
+  text-decoration: none;
+}
+
+.moduleCard a:hover,
+.moduleCard a:focus-visible,
+.openButton:hover,
+.openButton:focus-visible {
+  text-decoration: underline;
+}
+
+.alertPage,
+.heatmapPage,
+.historyPage {
+  color: #0f172a;
+  margin: 0 auto;
+  max-height: calc(100vh - 86px);
+  max-width: 100%;
+  overflow-y: auto;
+  padding: 18px 4px 34px;
+  scrollbar-color: #9bc9ff transparent;
+  scrollbar-width: thin;
+  width: 100%;
+}
+
+.alertPage::-webkit-scrollbar,
+.heatmapPage::-webkit-scrollbar,
+.historyPage::-webkit-scrollbar {
+  width: 8px;
+}
+
+.alertPage::-webkit-scrollbar-track,
+.heatmapPage::-webkit-scrollbar-track,
+.historyPage::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.alertPage::-webkit-scrollbar-thumb,
+.heatmapPage::-webkit-scrollbar-thumb,
+.historyPage::-webkit-scrollbar-thumb {
+  background: #9bc9ff;
+  border-radius: 999px;
+}
+
+.heatmapPage {
+  display: grid;
+  gap: 24px;
+}
+
+.backButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #0b67ff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 8px;
+  margin: 0 0 24px;
+  padding: 0;
+}
+
+.backButton span {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.alertPage h2 {
+  color: #004b88;
+  font-size: 27px;
+  line-height: 1;
+  margin: 0 0 34px;
+}
+
+.heatmapTop {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0 auto;
+  max-width: 100%;
+  width: 100%;
+}
+
+.heatmapTop .backButton {
+  margin-bottom: 22px;
+}
+
+.heatmapTop h2 {
+  color: #004b88;
+  font-size: 27px;
+  line-height: 1;
+  margin: 0 0 8px;
+}
+
+.historyPage h2 {
+  color: #004b88;
+  font-size: 27px;
+  line-height: 1;
+  margin: 0 0 34px;
+}
+
+.heatmapTop p {
+  color: #155dff;
+  font-size: 10px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.reviewButton {
+  align-items: center;
+  align-self: stretch;
+  background: #155dff;
+  border: 0;
+  border-radius: 7px;
+  box-shadow: 0 9px 16px rgba(0, 75, 255, 0.22);
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 9px;
+  height: 38px;
+  justify-content: center;
+  padding: 0 18px;
+}
+
+.reviewButton span {
+  font-size: 13px;
+}
+
+.configPanel,
+.activityPanel,
+.heatmapCard,
+.chartCard,
+.distributionCard,
+.historyCard {
+  background: #ffffff;
+  border: 1px solid #e6ebf2;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 100%;
+  padding: clamp(22px, 2vw, 30px);
+  width: 100%;
+}
+
+.heatmapCard,
+.chartCard,
+.distributionCard,
+.historyCard {
+  box-shadow: 0 9px 18px rgba(15, 23, 42, 0.12);
+}
+
+.historyCard {
+  border-radius: 9px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.historyCard h3 {
+  background: linear-gradient(90deg, #155dff 0%, #008fd0 100%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0;
+  padding: 14px 20px;
+}
+
+.historyBody {
+  padding: 22px clamp(22px, 3vw, 44px) 76px;
+}
+
+.historyFilter {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d7dee9;
+  border-radius: 999px;
+  color: #111827;
+  display: inline-flex;
+  font-size: 9px;
+  font-weight: 800;
+  gap: 6px;
+  height: 26px;
+  justify-content: center;
+  margin-bottom: 16px;
+  padding: 0 13px;
+}
+
+.historyFilter span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.historyBody h4 {
+  color: #111827;
+  font-size: 11px;
+  font-weight: 800;
+  margin: 0 0 30px;
+}
+
+.lineChartWrap {
+  display: grid;
+  grid-template-columns: 38px minmax(760px, 1fr);
+  margin: 0 0 56px;
+  min-height: 142px;
+  overflow-x: auto;
+  position: relative;
+}
+
+.historyYAxis {
+  color: #8b95a5;
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  text-align: right;
+}
+
+.historyAxisLabel {
+  color: #64748b;
+  font-size: 9px;
+  left: -18px;
+  position: absolute;
+  top: 62px;
+  transform: rotate(-90deg);
+}
+
+.lineChart {
+  background:
+    repeating-linear-gradient(to bottom, transparent 0, transparent 34px, #e4e8ef 35px),
+    repeating-linear-gradient(to right, transparent 0, transparent 150px, #edf1f7 151px);
+  border-bottom: 1px solid #8b95a5;
+  border-left: 1px solid #c2cad6;
+  min-width: 760px;
+  position: relative;
+}
+
+.lineChart svg {
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.lineChart path {
+  fill: none;
+  stroke: #4a84ff;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.lineDot {
+  border-radius: 50%;
+  display: block;
+  height: 9px;
+  position: absolute;
+  width: 9px;
+}
+
+.dotWarning {
+  background: #f7bd00;
+  left: -4px;
+  top: 96px;
+}
+
+.dotCritical {
+  background: #ee0010;
+  left: 56%;
+  top: 35px;
+}
+
+.dotAlert {
+  background: #ff7417;
+  right: -4px;
+  top: 64px;
+}
+
+.historyTableWrap {
+  overflow-x: auto;
+}
+
+.historyTable {
+  border-collapse: collapse;
+  min-width: 900px;
+  width: 100%;
+}
+
+.historyTable th,
+.historyTable td {
+  border-bottom: 1px solid #eef2f7;
+  color: #111827;
+  font-size: 10px;
+  padding: 17px 12px;
+  text-align: left;
+}
+
+.historyTable th {
+  color: #334155;
+  font-weight: 800;
+}
+
+.activityPanel {
+  margin-top: 24px;
+}
+
+.panelHeader {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.panelHeader h3,
+.activityPanel h3,
+.heatmapHeader h3,
+.chartCard h3,
+.distributionCard h3 {
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+
+.heatmapHeader {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.heatmapHeader h3,
+.chartCard h3,
+.distributionCard h3 {
+  color: #004b88;
+  font-weight: 800;
+  margin: 0;
+}
+
+.legendRow,
+.chartLegend {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.legendRow span,
+.chartLegend span {
+  align-items: center;
+  color: #1f2937;
+  display: inline-flex;
+  font-size: 9px;
+  gap: 6px;
+}
+
+.legendRow i,
+.chartLegend i,
+.distributionStats i {
+  border-radius: 2px;
+  display: inline-block;
+  height: 9px;
+  width: 9px;
+}
+
+.legendWarning {
+  background: #f7bd00;
+}
+
+.legendAlert {
+  background: #ff7417;
+}
+
+.legendCritical {
+  background: #ff3347;
+}
+
+.mapCanvas {
+  background: #dcebff;
+  border: 1px solid #9fc6ff;
+  border-radius: 8px;
+  height: clamp(210px, 27vh, 300px);
+  overflow: hidden;
+  position: relative;
+}
+
+.hotspotOne,
+.hotspotTwo {
+  border-radius: 50%;
+  filter: blur(12px);
+  position: absolute;
+}
+
+.hotspotOne {
+  background: rgba(255, 130, 12, 0.72);
+  height: 96px;
+  left: 17%;
+  top: 25%;
+  width: 96px;
+}
+
+.hotspotTwo {
+  background: rgba(236, 211, 56, 0.38);
+  height: 82px;
+  left: 51%;
+  top: 38%;
+  width: 82px;
+}
+
+.pinOne,
+.pinTwo {
+  color: #ff7417;
+  font-size: 26px;
+  font-weight: 800;
+  position: absolute;
+  z-index: 2;
+}
+
+.pinOne {
+  left: 20%;
+  top: 25%;
+}
+
+.pinTwo {
+  color: #f7bd00;
+  left: 49%;
+  top: 49%;
+}
+
+.mapTooltip {
+  background: #ffffff;
+  border: 1px solid #d9dee8;
+  border-radius: 3px;
+  color: #111827;
+  font-size: 9px;
+  font-weight: 800;
+  left: 25%;
+  padding: 8px 10px;
+  position: absolute;
+  top: 27%;
+  z-index: 3;
+}
+
+.mapScribble {
+  border-bottom: 2px solid rgba(255, 255, 255, 0.9);
+  border-left: 2px solid rgba(255, 255, 255, 0.9);
+  bottom: -3px;
+  height: 16px;
+  left: 18px;
+  position: absolute;
+  transform: rotate(35deg);
+  width: 22px;
+}
+
+.mapScribble::after {
+  border-bottom: 2px solid rgba(255, 255, 255, 0.9);
+  border-left: 2px solid rgba(255, 255, 255, 0.9);
+  content: "";
+  height: 15px;
+  left: 12px;
+  position: absolute;
+  top: -2px;
+  width: 18px;
+}
+
+.chartWrap {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  margin-top: 22px;
+  min-height: 232px;
+  overflow-x: auto;
+  position: relative;
+}
+
+.yAxis {
+  color: #8b95a5;
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  justify-content: space-between;
+  padding-bottom: 32px;
+  text-align: right;
+}
+
+.axisLabel {
+  color: #64748b;
+  font-size: 9px;
+  left: -18px;
+  position: absolute;
+  top: 74px;
+  transform: rotate(-90deg);
+}
+
+.barChart {
+  align-items: end;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0, transparent 47px, #d9dee8 48px),
+    repeating-linear-gradient(to right, transparent 0, transparent 142px, #edf1f7 143px);
+  border-bottom: 1px solid #8b95a5;
+  border-left: 1px solid #c2cad6;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(46px, 1fr));
+  min-width: 900px;
+  padding: 0 30px;
+  position: relative;
+}
+
+.barSlot {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  height: 204px;
+  justify-content: end;
+}
+
+.bar {
+  display: block;
+  width: 58px;
+}
+
+.warningBar {
+  background: #f7bd00;
+}
+
+.alertBar {
+  background: #ff7417;
+}
+
+.criticalBar {
+  background: #ee0010;
+}
+
+.barSlot small {
+  color: #64748b;
+  display: block;
+  font-size: 8px;
+  line-height: 1.25;
+  margin-top: 8px;
+  max-width: 82px;
+  text-align: center;
+}
+
+.hoverNote {
+  background: rgba(255, 248, 237, 0.95);
+  color: #374151;
+  font-size: 9px;
+  left: 80px;
+  line-height: 1.5;
+  padding: 22px 28px;
+  position: absolute;
+  top: 36px;
+  width: 180px;
+  z-index: 3;
+}
+
+.hoverNote b,
+.hoverNote em {
+  display: block;
+}
+
+.hoverNote b {
+  color: #111827;
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: 7px;
+}
+
+.hoverNote em {
+  color: #f7bd00;
+  font-style: normal;
+  font-weight: 800;
+  margin-top: 10px;
+}
+
+.chartLegend {
+  justify-content: center;
+  margin-top: 26px;
+}
+
+.distributionBody {
+  align-items: center;
+  display: grid;
+  gap: 32px;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  margin-top: 50px;
+}
+
+.donut {
+  align-items: center;
+  background: conic-gradient(#f7bd00 0 75%, #ff7417 75% 89%, #ff3347 89% 98%, transparent 98% 100%);
+  border-radius: 50%;
+  display: flex;
+  height: 170px;
+  justify-content: center;
+  position: relative;
+  width: 170px;
+}
+
+.donut::before {
+  background: #ffffff;
+  border-radius: 50%;
+  content: "";
+  height: 102px;
+  position: absolute;
+  width: 102px;
+}
+
+.donut div {
+  position: relative;
+  text-align: center;
+  z-index: 1;
+}
+
+.donut strong {
+  color: #111827;
+  display: block;
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1;
+  margin-bottom: 7px;
+}
+
+.donut span {
+  color: #64748b;
+  display: block;
+  font-size: 10px;
+}
+
+.distributionStats {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(3, minmax(54px, 1fr));
+  width: 100%;
+}
+
+.distributionStats div {
+  text-align: center;
+}
+
+.distributionStats span {
+  align-items: center;
+  color: #64748b;
+  display: inline-flex;
+  font-size: 9px;
+  gap: 5px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.distributionStats strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.distributionStats small {
+  color: #8b95a5;
+  display: block;
+  font-size: 9px;
+}
+
+.warningText {
+  color: #f7bd00;
+}
+
+.alertText {
+  color: #ff7417;
+}
+
+.criticalText {
+  color: #ff3347;
+}
+
+.panelHeader p {
+  color: #64748b;
+  font-size: 10px;
+  margin: 0;
+}
+
+.addButton {
+  align-items: center;
+  align-self: stretch;
+  background: #155dff;
+  border: 0;
+  border-radius: 7px;
+  color: #ffffff;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 12px;
+  height: 43px;
+  justify-content: center;
+  padding: 0 24px;
+}
+
+.addButton span {
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.alertCards {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1fr;
+}
+
+.alertCard {
+  border: 1px solid;
+  border-radius: 8px;
+  min-height: 178px;
+  padding: 18px 16px 16px;
+}
+
+.alertCard.alert {
+  background: #fffde8;
+  border-color: #ffc400;
+}
+
+.alertCard.warning {
+  background: #fff4ea;
+  border-color: #ff7a1a;
+}
+
+.alertCard.critical {
+  background: #fff1f3;
+  border-color: #ff5163;
+}
+
+.levelTop {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.levelIcon,
+.activityIcon {
+  align-items: center;
+  border-radius: 9px;
+  color: #ffffff;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
+.levelIcon {
+  height: 40px;
+  width: 40px;
+}
+
+.alert .levelIcon,
+.alert .activityIcon {
+  background: #f5b800;
+}
+
+.warning .levelIcon,
+.warning .activityIcon {
+  background: #ff6b00;
+}
+
+.critical .levelIcon,
+.critical .activityIcon {
+  background: #ff3347;
+}
+
+.levelTop strong {
+  color: #334155;
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 5px;
+}
+
+.levelTop small {
+  color: #475569;
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.alertCard p,
+.levelNote {
+  color: #334155;
+  display: block;
+  font-size: 9px;
+}
+
+.alertCard p {
+  margin: 0 0 6px;
+}
+
+.levelNote {
+  line-height: 1.35;
+  margin-bottom: 20px;
+}
+
+.cardActions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.editButton,
+.deleteButton {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 500;
+  gap: 8px;
+  height: 37px;
+  justify-content: center;
+}
+
+.editButton {
+  color: #334155;
+}
+
+.editButton span {
+  font-size: 16px;
+  line-height: 1;
+  transform: rotate(24deg);
+}
+
+.deleteButton {
+  color: #f5223b;
+}
+
+.deleteButton span {
+  font-size: 10px;
+}
+
+.activityPanel h3 {
+  margin-bottom: 18px;
+}
+
+.activityList {
+  display: grid;
+  gap: 12px;
+}
+
+.activityItem {
+  align-items: center;
+  border-left: 4px solid;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 63px;
+  padding: 10px 14px;
+}
+
+.activityItem.critical {
+  background: #fff0f2;
+  border-left-color: #ff3347;
+}
+
+.activityItem.warning {
+  background: #fff6ec;
+  border-left-color: #ff6b00;
+}
+
+.activityItem.alert {
+  background: #fffde8;
+  border-left-color: #f5b800;
+}
+
+.activityIcon {
+  border-radius: 50%;
+  height: 33px;
+  width: 33px;
+}
+
+.activityItem strong {
+  color: #1f2937;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.activityItem p {
+  color: #64748b;
+  font-size: 9px;
+  margin: 3px 0 0;
+}
+
+.activityBadge {
+  border-radius: 999px;
+  font-size: 9px;
+  line-height: 1;
+  padding: 6px 11px;
+}
+
+.critical .activityBadge {
+  background: #ffe0e5;
+  color: #ff3347;
+}
+
+.warning .activityBadge {
+  background: #fff1db;
+  color: #ff6b00;
+}
+
+.alert .activityBadge {
+  background: #fff8c8;
+  color: #d59d00;
+}
+
+@media (max-width: 679px) {
+  .moduleCard {
+    min-height: 184px;
+  }
+
+  .alertPage,
+  .heatmapPage,
+  .historyPage {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+@media (min-width: 680px) {
+  .moduleCards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .panelHeader {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .addButton {
+    align-self: auto;
+    min-width: 206px;
+  }
+
+  .alertCards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .heatmapTop {
+    align-items: flex-start;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .reviewButton {
+    align-self: flex-start;
+    min-width: 176px;
+  }
+
+  .heatmapHeader {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .distributionBody {
+    grid-template-columns: minmax(190px, 1fr) minmax(260px, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .panel {
+    align-content: start;
+    display: grid;
+    min-height: calc(100vh - 235px);
+    padding-top: clamp(38px, 6vh, 72px);
+  }
+
+  .moduleCards {
+    max-width: min(1180px, 100%);
+  }
+
+  .moduleCard {
+    min-height: clamp(218px, 24vh, 250px);
+    padding: clamp(30px, 3vh, 38px) 22px 28px;
+  }
+
+  .alertPage,
+  .heatmapPage,
+  .historyPage {
+    max-width: 100%;
+    padding-left: 0;
+    padding-right: 8px;
+    padding-top: 18px;
+  }
+
+  .alertPage h2,
+  .heatmapTop h2,
+  .historyPage h2 {
+    font-size: 30px;
+  }
+
+  .configPanel,
+  .activityPanel,
+  .heatmapCard,
+  .chartCard,
+  .distributionCard,
+  .historyCard {
+    max-width: 100%;
+  }
+
+  .historyCard {
+    min-height: 620px;
+    padding: 0;
+  }
+
+  .historyTableWrap {
+    margin-top: 10px;
+  }
+
+  .historyTable th,
+  .historyTable td {
+    padding-bottom: 20px;
+    padding-top: 20px;
+  }
+
+  .heatmapTop {
+    max-width: 100%;
+  }
+
+  .mapCanvas {
+    height: clamp(268px, 30vh, 320px);
+  }
+
+  .chartCard {
+    overflow-x: auto;
+  }
+
+  .distributionCard {
+    min-height: 274px;
+    overflow: hidden;
+  }
+
+  .historyBody {
+    padding: 24px 44px 96px;
+  }
+
+  .lineChartWrap {
+    grid-template-columns: 42px minmax(940px, 1fr);
+  }
+
+  .lineChart {
+    min-width: 940px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .alertPage,
+  .heatmapPage,
+  .historyPage {
+    max-width: 100%;
+  }
+
+  .moduleCards {
+    max-width: min(1220px, 100%);
+  }
+}
