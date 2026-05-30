@@ -6,7 +6,9 @@ import { residentsMock } from "@/data/residents.mock";
 import styles from "./ResidentsPanel.module.css";
 
 type ResidentRow = {
-  id: string;
+  resident_id?: string;
+  first_name?: string;
+  last_name?: string;
   name: string;
   age: number | string;
   sex: string;
@@ -17,7 +19,7 @@ type ResidentRow = {
 };
 
 type FamilyRow = {
-  id: string;
+  family_id?: string;
   familyName: string;
   familyHead: string;
   pwd: number;
@@ -92,7 +94,10 @@ export function ResidentsPanel() {
                 </thead>
                 <tbody>
                   {displayedResidents.map((resident, index) => (
-                    <tr key={resident.id} className={cn(resident.selected && styles.selected)}>
+                    <tr
+                      key={resident.resident_id ?? `${resident.first_name ?? resident.name}-${resident.last_name ?? ""}-${index}`}
+                      className={cn(resident.selected && styles.selected)}
+                    >
                       <td>{String(index + 1).padStart(3, "0")}</td>
                       <td>
                         <a href="#">{resident.name}</a>
@@ -148,9 +153,9 @@ export function ResidentsPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {familyClusters.map((cluster) => (
-                    <tr key={cluster.id}>
-                      <td>{cluster.id}</td>
+                  {familyClusters.map((cluster, index) => (
+                    <tr key={cluster.family_id ?? `${cluster.familyName}-${index}`}>
+                      <td>{cluster.family_id ?? String(index + 1).padStart(3, "0")}</td>
                       <td>
                         <a href="#">{cluster.familyName}</a>
                       </td>
@@ -174,8 +179,13 @@ export function ResidentsPanel() {
 }
 
 function mapResident(row: Record<string, unknown>): ResidentRow {
+  const firstName = String(row.first_name ?? "");
+  const lastName = String(row.last_name ?? "");
+
   return {
-    id: String(row.id),
+    resident_id: row.resident_id ? String(row.resident_id) : undefined,
+    first_name: firstName,
+    last_name: lastName,
     name: [row.first_name, row.middle_name, row.last_name, row.suffix].filter(Boolean).join(" "),
     age: String(row.age ?? ""),
     sex: String(row.sex ?? ""),
@@ -187,7 +197,7 @@ function mapResident(row: Record<string, unknown>): ResidentRow {
 
 function mapFamily(row: Record<string, unknown>): FamilyRow {
   return {
-    id: String(row.id),
+    family_id: row.family_id ? String(row.family_id) : undefined,
     familyName: String(row.family_name ?? ""),
     familyHead: String(row.family_head_name ?? ""),
     pwd: Number(row.pwd_count ?? 0),

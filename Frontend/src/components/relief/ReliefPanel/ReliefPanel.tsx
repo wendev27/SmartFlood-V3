@@ -110,10 +110,10 @@ export function ReliefPanel() {
           </div>
 
           <div className={styles.recommendationList}>
-            {recommendations.map((recommendation) => (
+            {recommendations.map((recommendation, index) => (
               <article
                 className={styles.recommendationCard}
-                key={recommendation.id}
+                key={recommendation.recommendation_id ?? `${recommendation.barangay_name ?? recommendation.barangay}-${index}`}
                 onClick={() => setSelectedReport(recommendation)}
                 tabIndex={0}
                 role="button"
@@ -172,7 +172,7 @@ export function ReliefPanel() {
             minWidth={760}
           >
             {history.map((entry, index) => (
-              <tr key={`${entry.barangay}-${entry.date}-${index}`}>
+              <tr key={entry.recommendation_id ?? `${entry.barangay_name ?? entry.barangay}-${index}`}>
                 <td>{entry.id}</td>
                 <td>{entry.date}</td>
                 <td>{entry.time}</td>
@@ -204,8 +204,8 @@ export function ReliefPanel() {
         <div className={styles.inventoryBody}>
           <h4>Current Inventory ({draftInventory.length} items)</h4>
           <div className={styles.inventoryList}>
-            {draftInventory.map((item) => (
-              <div className={styles.inventoryItem} key={item.id}>
+            {draftInventory.map((item, index) => (
+              <div className={styles.inventoryItem} key={item.inventory_id ?? `${item.name}-${index}`}>
                 <div>
                   <strong>{item.name}</strong>
                   <span>Unit: {item.unit}</span>
@@ -281,7 +281,9 @@ function mapRecommendation(row: Record<string, unknown>, index: number): ReliefR
   const individualGoods = Number(row.recommended_relief_goods_individual ?? 0);
 
   return {
+    recommendation_id: row.recommendation_id ? String(row.recommendation_id) : undefined,
     id: String(index + 1),
+    barangay_name: String(row.barangay_name ?? row.barangay ?? "Unknown"),
     barangay: String(row.barangay_name ?? row.barangay ?? "Unknown"),
     recommendedItems: `${foodPacks} food packs, ${medicineKits} medicine kits, ${individualGoods} individual goods`,
     analysisReason: String(row.analysis_reason ?? `${row.risk_level ?? "normal"} risk, priority score ${row.priority_score ?? 0}`),
@@ -293,7 +295,9 @@ function mapHistory(row: Record<string, unknown>, index: number) {
   const createdAt = row.created_at ? new Date(String(row.created_at)) : new Date();
 
   return {
-    id: String(row.id ?? index + 1),
+    recommendation_id: row.recommendation_id ? String(row.recommendation_id) : undefined,
+    id: String(row.recommendation_id ?? index + 1),
+    barangay_name: String(row.barangay_name ?? row.barangay ?? "Unknown"),
     date: createdAt.toLocaleDateString(),
     time: createdAt.toLocaleTimeString(),
     barangay: String(row.barangay_name ?? row.barangay ?? "Unknown"),

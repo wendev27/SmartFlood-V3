@@ -16,7 +16,7 @@ export function VerificationPanel() {
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
   const [applicationMode, setApplicationMode] = useState<ModalMode>("add");
-  const [applications, setApplications] = useState<VerificationApplication[]>(verificationApplicationsMock.map((application, index) => ({ ...application, id: `mock-${index}` })));
+  const [applications, setApplications] = useState<VerificationApplication[]>(verificationApplicationsMock.map((application, index) => ({ ...application, application_id: `mock-${index}` })));
   const [selectedApplication, setSelectedApplication] = useState<VerificationApplication | null>(null);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function VerificationPanel() {
       body.selected_family_id = selectedFamilyId || window.prompt("Enter selected family ID for this resident");
     }
 
-    const response = await fetch(`/api/resident-applications/${selectedApplication.id}/review`, {
+    const response = await fetch(`/api/resident-applications/${selectedApplication.application_id}/review`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -113,9 +113,9 @@ export function VerificationPanel() {
         ]}
       />
       <div className={styles.list}>
-        {visibleApplications.map((application) => (
+        {visibleApplications.map((application, index) => (
           <ApplicationCard
-            key={`${application.name}-${application.status}`}
+            key={application.application_id ?? `${String(application.raw?.first_name ?? "")}-${String(application.raw?.last_name ?? "")}-${index}`}
             application={application}
             onReview={() => {
               setSelectedApplication(application);
@@ -152,7 +152,7 @@ function mapApplication(row: Record<string, unknown>): VerificationApplication {
   const initials = [firstName[0], lastName[0]].filter(Boolean).join("").toUpperCase() || "NA";
 
   return {
-    id: String(row.id),
+    application_id: row.application_id ? String(row.application_id) : undefined,
     initials,
     name,
     status: (row.status === "approved" || row.status === "rejected" ? row.status : "pending") as VerificationStatus,
