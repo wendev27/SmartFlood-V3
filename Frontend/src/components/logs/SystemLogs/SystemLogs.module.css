@@ -3,14 +3,32 @@
   gap: 24px;
 }
 
+.toolbar {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
 .search {
   align-items: center;
   border: 1px solid #cbd5e1;
   border-radius: 9px;
   display: flex;
   height: 42px;
-  max-width: 420px;
   padding: 0 13px;
+}
+
+.toolbar select {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  color: #475569;
+  font-size: 12px;
+  height: 42px;
+  min-width: 0;
+  padding: 0 12px;
+  width: 100%;
 }
 
 .searchIcon {
@@ -84,6 +102,7 @@
   letter-spacing: 0.01em;
 }
 
+.action,
 .status {
   background: #cff8dd;
   border-radius: 4px;
@@ -94,6 +113,16 @@
   justify-content: center;
   min-width: 62px;
   padding: 6px 8px;
+}
+
+.error {
+  background: #fef3f2;
+  border-radius: 8px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0;
+  padding: 10px 12px;
 }
 
 .failed {
@@ -123,6 +152,12 @@
   .table th,
   .table td {
     padding-inline: 18px;
+  }
+}
+
+@media (min-width: 900px) {
+  .toolbar {
+    grid-template-columns: minmax(260px, 1fr) minmax(170px, 0.45fr) minmax(170px, 0.45fr);
   }
 }
 

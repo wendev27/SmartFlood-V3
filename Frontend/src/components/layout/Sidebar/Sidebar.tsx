@@ -2,18 +2,19 @@
 
 import { navigationItems } from "@/data/navigation";
 import { cn } from "@/lib/cn";
-import type { PageKey } from "@/types/navigation";
+import type { NavItem, PageKey } from "@/types/navigation";
 import { NavLinkItem } from "@/components/navigation/NavLinkItem/NavLinkItem";
 import styles from "./Sidebar.module.css";
 
 interface SidebarProps {
   activePage: PageKey;
   isOpen: boolean;
+  items?: NavItem[];
   onNavigate: (page: PageKey) => void;
   onToggleMobileNav: () => void;
 }
 
-export function Sidebar({ activePage, isOpen, onNavigate, onToggleMobileNav }: SidebarProps) {
+export function Sidebar({ activePage, isOpen, items = navigationItems, onNavigate, onToggleMobileNav }: SidebarProps) {
   return (
     <aside className={styles.sidebar} aria-label="Main navigation">
       <nav className={cn(styles.navCard, isOpen && styles.open)}>
@@ -40,7 +41,7 @@ export function Sidebar({ activePage, isOpen, onNavigate, onToggleMobileNav }: S
           </div>
         </div>
         <div className={styles.navLinks} id="smartflood-nav-links">
-          {navigationItems.map((item) => (
+          {items.map((item) => (
             <NavLinkItem
               key={item.key}
               item={item}

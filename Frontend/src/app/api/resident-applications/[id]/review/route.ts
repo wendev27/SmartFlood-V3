@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
 import { fullName, familyVulnerabilityPayload, pickResidentPayload } from "@/lib/residentPayload";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -47,6 +48,17 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
         .single();
 
       if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+      await logAuditEvent({
+        ...auditActorFromBody(body),
+        action: "APPLICATION_REJECTED",
+        module: "Resident Account Registration Management",
+        description: `Rejected resident application for ${fullName(application)}.`,
+        target_type: "resident_application",
+        target_id: String(id),
+        barangay_id: application.barangay_id ?? null,
+        barangay_name: application.barangay_name ?? null,
+      });
 
       return NextResponse.json({ success: true, data });
     }
@@ -107,6 +119,17 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
       if (reviewError) return NextResponse.json({ success: false, error: reviewError.message }, { status: 500 });
 
+      await logAuditEvent({
+        ...auditActorFromBody(body),
+        action: "APPLICATION_APPROVED",
+        module: "Resident Account Registration Management",
+        description: `Approved resident application for ${fullName(application)}.`,
+        target_type: "resident_application",
+        target_id: String(id),
+        barangay_id: application.barangay_id ?? null,
+        barangay_name: application.barangay_name ?? null,
+      });
+
       return NextResponse.json({ success: true, data: { application: reviewedApplication, resident: { ...resident, family_id: family.family_id }, family } });
     }
 
@@ -132,6 +155,17 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       .single();
 
     if (reviewError) return NextResponse.json({ success: false, error: reviewError.message }, { status: 500 });
+
+    await logAuditEvent({
+      ...auditActorFromBody(body),
+      action: "APPLICATION_APPROVED",
+      module: "Resident Account Registration Management",
+      description: `Approved resident application for ${fullName(application)}.`,
+      target_type: "resident_application",
+      target_id: String(id),
+      barangay_id: application.barangay_id ?? null,
+      barangay_name: application.barangay_name ?? null,
+    });
 
     return NextResponse.json({ success: true, data: { application: reviewedApplication, resident } });
   } catch (error) {

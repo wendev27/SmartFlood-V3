@@ -63,6 +63,10 @@ a {
   color: inherit;
 }
 
+.leaflet-container {
+  z-index: 1;
+}
+
 .srOnly {
   clip: rect(0, 0, 0, 0);
   border: 0;

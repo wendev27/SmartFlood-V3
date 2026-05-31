@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { withAuditActor } from "@/lib/auditClient";
 import { cn } from "@/lib/cn";
 import { ActionResultModal, type ActionResultType } from "@/components/ui/ActionResultModal";
 import { Button } from "@/components/ui/Button/Button";
@@ -335,7 +336,7 @@ export function ResidentsPanel() {
       await fetchJson(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(withAuditActor(payload)),
       });
 
       setResidentForm(emptyResidentForm);

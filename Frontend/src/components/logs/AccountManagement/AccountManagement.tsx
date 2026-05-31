@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { withAuditActor } from "@/lib/auditClient";
 import { fetchJson } from "@/services/apiClient";
 import { getAccountUsers } from "@/services/logsService";
 import styles from "./AccountManagement.module.css";
@@ -213,13 +214,13 @@ export function AccountManagement() {
         await fetchJson(`/api/app-users/${selectedUser.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(withAuditActor(payload)),
         });
       } else {
         await fetchJson("/api/app-users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(withAuditActor(payload)),
         });
       }
 
@@ -254,7 +255,7 @@ export function AccountManagement() {
       await fetchJson(`/api/app-users/${passwordUser.id}/password`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ new_password: newPassword }),
+        body: JSON.stringify(withAuditActor({ new_password: newPassword })),
       });
       setPasswordUser(null);
       setNewPassword("");
@@ -285,7 +286,7 @@ export function AccountManagement() {
       await fetchJson(`/api/app-users/${user.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(withAuditActor({ status })),
       });
       await refreshUsers();
       setPreviewUser((current) => current?.id === user.id ? { ...current, status } : current);

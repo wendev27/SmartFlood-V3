@@ -5,5 +5,5 @@ export async function getAccountUsers() {
 }
 
 export async function getAuditLogs() {
-  return Promise.resolve([]);
+  return fetchJson<Record<string, unknown>[]>("/api/logs?limit=300");
 }

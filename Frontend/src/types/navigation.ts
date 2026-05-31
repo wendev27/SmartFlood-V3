@@ -8,6 +8,8 @@ export type PageKey =
   | "residents"
   | "accounts";
 
+export type DashboardRole = "super" | "barangay" | "cswdd" | "cdrrmo";
+
 export interface NavItem {
   key: PageKey;
   label: string;

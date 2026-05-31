@@ -1,4 +1,9 @@
-import Link from "next/link";
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { fetchJson } from "@/services/apiClient";
+import { clearStoredSession, setStoredSession, type StoredSessionUser } from "@/lib/authSession";
 import styles from "./LoginPage.module.css";
 
 function FrogLogo() {
@@ -54,6 +59,40 @@ function EyeIcon() {
 }
 
 export function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function submitLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    if (!email.trim() || !password) {
+      setError("Email and password are required.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const user = await fetchJson<StoredSessionUser>("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      clearStoredSession();
+      setStoredSession(user);
+      router.push("/dashboard");
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "Unable to login. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <main className={styles.page}>
       <section className={styles.brandPanel} aria-label="SmartFlood introduction">
@@ -83,12 +122,20 @@ export function LoginPage() {
             <p>Enter your credentials to access the system</p>
           </div>
 
+          <form className={styles.loginForm} onSubmit={submitLogin}>
           <div className={styles.formFields}>
             <label className={styles.fieldGroup}>
               <span>Username</span>
               <span className={styles.inputShell}>
                 <UserIcon />
-                <input aria-label="Email" placeholder="Email" type="email" />
+                <input
+                  aria-label="Email"
+                  autoComplete="email"
+                  placeholder="Email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
               </span>
             </label>
 
@@ -96,21 +143,36 @@ export function LoginPage() {
               <span>Password</span>
               <span className={styles.inputShell}>
                 <PasswordIcon />
-                <input aria-label="Password" placeholder="Enter password" type="password" />
-                <button className={styles.iconButton} type="button" aria-label="Show password">
+                <input
+                  aria-label="Password"
+                  autoComplete="current-password"
+                  placeholder="Enter password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+                <button
+                  className={styles.iconButton}
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((current) => !current)}
+                >
                   <EyeIcon />
                 </button>
               </span>
             </label>
           </div>
 
+          {error ? <p className={styles.errorMessage}>{error}</p> : null}
+
           <button className={styles.forgotLink} type="button">
             Forgot password?
           </button>
 
-          <Link className={styles.loginButton} href="/dashboard">
-            Login
-          </Link>
+          <button className={styles.loginButton} type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Logging in..." : "Login"}
+          </button>
+          </form>
         </div>
       </section>
     </main>

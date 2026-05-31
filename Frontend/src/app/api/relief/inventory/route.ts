@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET() {
@@ -36,6 +37,15 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
+
+    await logAuditEvent({
+      ...auditActorFromBody(body),
+      action: "RELIEF_INVENTORY_UPDATED",
+      module: "AI-Optimized Relief Recommendation",
+      description: "Updated available relief inventory.",
+      target_type: "relief_inventory",
+      target_id: String(data.inventory_id ?? data.id ?? data.created_at ?? ""),
+    });
 
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (error) {
