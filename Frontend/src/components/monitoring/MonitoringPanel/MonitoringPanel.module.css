@@ -78,37 +78,18 @@
 .historyPage {
   color: #0f172a;
   margin: 0 auto;
-  max-height: calc(100vh - 86px);
+  max-height: none;
   max-width: 100%;
-  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-y: visible;
   padding: 18px 4px 34px;
-  scrollbar-color: #9bc9ff transparent;
-  scrollbar-width: thin;
   width: 100%;
-}
-
-.alertPage::-webkit-scrollbar,
-.heatmapPage::-webkit-scrollbar,
-.historyPage::-webkit-scrollbar {
-  width: 8px;
-}
-
-.alertPage::-webkit-scrollbar-track,
-.heatmapPage::-webkit-scrollbar-track,
-.historyPage::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.alertPage::-webkit-scrollbar-thumb,
-.heatmapPage::-webkit-scrollbar-thumb,
-.historyPage::-webkit-scrollbar-thumb {
-  background: #9bc9ff;
-  border-radius: 999px;
 }
 
 .heatmapPage {
   display: grid;
   gap: 24px;
+  padding-bottom: 64px;
 }
 
 .historyPage {
@@ -261,6 +242,13 @@
 .distributionCard,
 .historyCard {
   box-shadow: 0 9px 18px rgba(15, 23, 42, 0.12);
+}
+
+.heatmapCard,
+.chartCard,
+.distributionCard {
+  height: auto;
+  overflow: visible;
 }
 
 .historyCard {
@@ -516,15 +504,19 @@
 }
 
 .pointWarning {
-  background: #f7bd00;
+  background: #ff7417;
 }
 
 .pointAlert {
-  background: #ff7417;
+  background: #f7bd00;
 }
 
 .pointCritical {
   background: #ff3347;
+}
+
+.pointNoReading {
+  background: #94a3b8;
 }
 
 .timelineLabels {
@@ -558,7 +550,7 @@
 }
 
 .dotWarning {
-  background: #f7bd00;
+  background: #ff7417;
   left: -4px;
   top: 96px;
 }
@@ -570,7 +562,7 @@
 }
 
 .dotAlert {
-  background: #ff7417;
+  background: #f7bd00;
   right: -4px;
   top: 64px;
 }
@@ -673,7 +665,7 @@
   align-items: center;
   color: #1f2937;
   display: inline-flex;
-  font-size: 9px;
+  font-size: 12px;
   gap: 6px;
 }
 
@@ -687,7 +679,7 @@
 }
 
 .legendWarning {
-  background: #f7bd00;
+  background: #ff7417;
 }
 
 .legendNormal {
@@ -695,7 +687,7 @@
 }
 
 .legendAlert {
-  background: #ff7417;
+  background: #f7bd00;
 }
 
 .legendCritical {
@@ -710,7 +702,7 @@
   background: #dcebff;
   border: 1px solid #9fc6ff;
   border-radius: 8px;
-  height: clamp(210px, 27vh, 300px);
+  height: clamp(300px, 36vh, 380px);
   overflow: hidden;
   position: relative;
 }
@@ -798,8 +790,9 @@
   display: grid;
   grid-template-columns: 34px 1fr;
   margin-top: 22px;
-  min-height: 232px;
+  min-height: clamp(260px, 34vh, 340px);
   overflow-x: auto;
+  overflow-y: visible;
   position: relative;
 }
 
@@ -841,7 +834,7 @@
   align-items: center;
   display: flex;
   flex-direction: column;
-  height: 204px;
+  height: clamp(230px, 30vh, 300px);
   justify-content: end;
 }
 
@@ -851,7 +844,7 @@
 }
 
 .warningBar {
-  background: #f7bd00;
+  background: #ff7417;
 }
 
 .normalBar {
@@ -859,7 +852,7 @@
 }
 
 .alertBar {
-  background: #ff7417;
+  background: #f7bd00;
 }
 
 .criticalBar {
@@ -881,7 +874,7 @@
 .barSlot small {
   color: #64748b;
   display: block;
-  font-size: 8px;
+  font-size: 11px;
   line-height: 1.25;
   margin-top: 8px;
   max-width: 82px;
@@ -1010,7 +1003,7 @@
 }
 
 .warningText {
-  color: #f7bd00;
+  color: #ff7417;
 }
 
 .normalText {
@@ -1018,7 +1011,7 @@
 }
 
 .alertText {
-  color: #ff7417;
+  color: #f7bd00;
 }
 
 .criticalText {
@@ -1480,16 +1473,16 @@
   }
 
   .mapCanvas {
-    height: clamp(268px, 30vh, 320px);
+    height: clamp(320px, 38vh, 380px);
   }
 
-  .chartCard {
-    overflow-x: auto;
+  .chartCard,
+  .distributionCard {
+    overflow: visible;
   }
 
   .distributionCard {
     min-height: 274px;
-    overflow: hidden;
   }
 
   .historyBody {

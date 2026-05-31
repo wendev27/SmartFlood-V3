@@ -48,7 +48,7 @@
   background: #ffffff;
   border: 0;
   color: #64748b;
-  font-size: 12px;
+  font-size: 13px;
   min-width: 0;
   outline: 0;
   width: 100%;
@@ -64,7 +64,7 @@
 .exportButton,
 .addButton {
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   height: 42px;
   padding: 0 18px;
@@ -86,7 +86,7 @@
 .emailLink {
   display: block;
   color: #334155;
-  font-size: 12px;
+  font-size: 13px;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -100,7 +100,7 @@
 
 .actionStack,
 .rowActions {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -133,6 +133,89 @@
   font-size: 12px;
   gap: 8px;
   padding: 0;
+}
+
+.actionPill {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #bfd5ff;
+  border-radius: 999px;
+  color: #0f61ff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.actionPill:hover,
+.actionPill:focus-visible {
+  background: #eef6ff;
+  border-color: #1a8cff;
+  box-shadow: 0 6px 16px rgba(15, 97, 255, 0.12);
+  outline: 0;
+}
+
+.actionIcon,
+.buttonIcon {
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 15px;
+  position: relative;
+  width: 15px;
+}
+
+.eyeIcon::before {
+  border: 1.8px solid currentColor;
+  border-radius: 999px / 70%;
+  content: "";
+  height: 9px;
+  left: 1px;
+  position: absolute;
+  top: 3px;
+  width: 13px;
+}
+
+.eyeIcon::after {
+  background: currentColor;
+  border-radius: 50%;
+  content: "";
+  height: 4px;
+  left: 5.5px;
+  position: absolute;
+  top: 5.5px;
+  width: 4px;
+}
+
+.pencilIcon::before,
+.pencilButtonIcon::before {
+  background: currentColor;
+  border-radius: 2px;
+  content: "";
+  height: 12px;
+  left: 7px;
+  position: absolute;
+  top: 1px;
+  transform: rotate(42deg);
+  width: 4px;
+}
+
+.pencilIcon::after,
+.pencilButtonIcon::after {
+  border-bottom: 2px solid currentColor;
+  content: "";
+  height: 4px;
+  left: 2px;
+  position: absolute;
+  top: 10px;
+  transform: rotate(-10deg);
+  width: 10px;
 }
 
 .accountDialog {
@@ -169,7 +252,7 @@
 
 .modalHeader p {
   color: rgba(255, 255, 255, 0.84);
-  font-size: 12px;
+  font-size: 13px;
   margin: 0;
 }
 
@@ -206,7 +289,7 @@
 .accountForm label {
   color: #334155;
   display: grid;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   gap: 7px;
 }
@@ -266,7 +349,7 @@
 
 .detailGrid dt {
   color: #64748b;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   margin-bottom: 6px;
 }
@@ -284,6 +367,92 @@
   flex-wrap: wrap;
   gap: 10px;
   padding: 18px 28px 26px;
+}
+
+.previewActions button {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.keyIcon::before {
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  content: "";
+  height: 8px;
+  left: 0;
+  position: absolute;
+  top: 2px;
+  width: 8px;
+}
+
+.keyIcon::after {
+  background: currentColor;
+  box-shadow: 5px 0 0 currentColor;
+  content: "";
+  height: 2px;
+  left: 7px;
+  position: absolute;
+  top: 6px;
+  width: 8px;
+}
+
+.powerIcon::before {
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  content: "";
+  height: 13px;
+  left: 1px;
+  position: absolute;
+  top: 2px;
+  width: 13px;
+}
+
+.powerIcon::after {
+  background: currentColor;
+  border-radius: 999px;
+  content: "";
+  height: 8px;
+  left: 7px;
+  position: absolute;
+  top: 0;
+  width: 2px;
+}
+
+.checkIcon::before {
+  border-bottom: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  content: "";
+  height: 6px;
+  left: 2px;
+  position: absolute;
+  top: 3px;
+  transform: rotate(-45deg);
+  width: 11px;
+}
+
+.shieldIcon::before {
+  border: 2px solid currentColor;
+  border-radius: 7px 7px 9px 9px;
+  content: "";
+  height: 14px;
+  left: 2px;
+  position: absolute;
+  top: 0;
+  width: 11px;
+}
+
+.shieldIcon::after {
+  background: currentColor;
+  border-radius: 999px;
+  content: "";
+  height: 7px;
+  left: 7px;
+  position: absolute;
+  top: 4px;
+  width: 2px;
 }
 
 .view {

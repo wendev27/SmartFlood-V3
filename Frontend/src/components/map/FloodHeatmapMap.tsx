@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
+import { getFloodStatusColor, getFloodStatusLabel } from "@/lib/statusStyles";
 import type { FloodHistoryRow } from "@/services/floodService";
 import styles from "./FloodHeatmapMap.module.css";
 
@@ -34,7 +35,7 @@ export function FloodHeatmapMap({ readings }: FloodHeatmapMapProps) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {validReadings.map((reading) => {
-        const tone = riskTone(reading.computedStatus);
+        const tone = getFloodStatusColor(reading.computedStatus, reading.waterLevelM);
         return (
           <CircleMarker
             center={[Number(reading.lat), Number(reading.lng)]}
@@ -51,7 +52,7 @@ export function FloodHeatmapMap({ readings }: FloodHeatmapMapProps) {
                 <span>{reading.barangayName}</span>
                 {reading.street ? <span>{reading.street}</span> : null}
                 <span>Water: {formatWaterLevel(reading.waterLevelM)}</span>
-                <span>Level: {reading.computedStatus || "no_reading"}</span>
+                <span>Level: {getFloodStatusLabel(reading.computedStatus, reading.waterLevelM)}</span>
                 <span>Updated: {formatTimestamp(reading.createdAt)}</span>
               </div>
             </Popup>
@@ -60,14 +61,6 @@ export function FloodHeatmapMap({ readings }: FloodHeatmapMapProps) {
       })}
     </MapContainer>
   );
-}
-
-function riskTone(status: string) {
-  const normalized = status.toLowerCase();
-  if (normalized.includes("critical")) return "#ff3347";
-  if (normalized.includes("warning") || normalized.includes("alert")) return "#f7a700";
-  if (normalized.includes("normal")) return "#17a34a";
-  return "#94a3b8";
 }
 
 function formatWaterLevel(value: number | null) {

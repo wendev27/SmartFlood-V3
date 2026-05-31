@@ -18,7 +18,11 @@
 }
 
 .warning {
-  background: #ffb700;
+  background: #ff7417;
+}
+
+.alert {
+  background: #f7bd00;
 }
 
 .normal {

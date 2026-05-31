@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
+import { getFloodBadgeTone, getFloodStatusLabel } from "@/lib/statusStyles";
 import { getSensors } from "@/services/sensorsService";
 import styles from "./SensorsPanel.module.css";
 
@@ -18,7 +19,7 @@ type SensorRow = {
   coordinates: string;
   status: "Active" | "Inactive" | "Offline";
   latestReading: string;
-  level: "Normal" | "Warning" | "Critical";
+  level: string;
   hasCoordinates: boolean;
 };
 
@@ -157,7 +158,8 @@ export function SensorsPanel() {
           <select aria-label="Alert level" value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)}>
             <option value="">Any Level</option>
             <option value="Normal">Normal</option>
-            <option value="Warning">Warning</option>
+            <option value="Flood Alert">Flood Alert</option>
+            <option value="Flood Warning">Flood Warning</option>
             <option value="Critical">Critical</option>
           </select>
           <button type="button" aria-label="Reset sensor filters" onClick={resetFilters}>X</button>
@@ -185,7 +187,7 @@ export function SensorsPanel() {
                 <td>{sensor.coordinates}</td>
                 <td><Badge tone={sensor.status === "Active" ? "green" : sensor.status === "Inactive" ? "yellow" : "red"}>{sensor.status}</Badge></td>
                 <td>{sensor.latestReading}</td>
-                <td><Badge tone={sensor.level === "Normal" ? "green" : sensor.level === "Warning" ? "yellow" : "red"}>{sensor.level}</Badge></td>
+                <td><Badge tone={getFloodBadgeTone(sensor.level)}>{sensor.level}</Badge></td>
               </tr>
             ))}
             {isLoading ? (
@@ -226,7 +228,7 @@ function mapSensor(row: Record<string, unknown>, index: number): SensorRow {
     coordinates: formatCoordinates(row),
     status: rawStatus === "active" ? "Active" : rawStatus === "inactive" || rawStatus === "degraded" ? "Inactive" : "Offline",
     latestReading: waterLevel == null ? "No reading" : `${waterLevel.toFixed(2)}m`,
-    level: computedStatus.includes("critical") ? "Critical" : computedStatus.includes("warning") ? "Warning" : "Normal",
+    level: getFloodStatusLabel(computedStatus, waterLevel),
     hasCoordinates: Boolean(resolveSensorCoordinates(row)),
   };
 }
