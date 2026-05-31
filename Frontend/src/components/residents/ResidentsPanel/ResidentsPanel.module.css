@@ -407,6 +407,10 @@
   gap: 8px;
 }
 
+.requiredAsterisk {
+  color: #dc2626;
+}
+
 .formGrid input,
 .formGrid select,
 .countGrid input {

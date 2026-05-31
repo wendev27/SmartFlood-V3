@@ -546,11 +546,11 @@ export function ResidentsPanel() {
             <h3><span aria-hidden="true" />Personal Information</h3>
             <div className={styles.formGrid}>
               <label>
-                Last Name
+                <span>Last Name <span className={styles.requiredAsterisk}>*</span></span>
                 <input value={residentForm.last_name} onChange={(event) => updateForm("last_name", event.target.value)} placeholder="e.g., Dela Cruz" />
               </label>
               <label>
-                First Name
+                <span>First Name <span className={styles.requiredAsterisk}>*</span></span>
                 <input value={residentForm.first_name} onChange={(event) => updateForm("first_name", event.target.value)} placeholder="e.g., Juan" />
               </label>
               <label>
@@ -562,11 +562,11 @@ export function ResidentsPanel() {
                 <input value={residentForm.suffix} onChange={(event) => updateForm("suffix", event.target.value)} placeholder="e.g., Jr." />
               </label>
               <label>
-                Age
+                <span>Age <span className={styles.requiredAsterisk}>*</span></span>
                 <input value={residentForm.age} onBlur={() => normalizeNumberField("age")} onChange={(event) => updateNumberField("age", event.target.value)} placeholder="e.g., 25" type="number" min="0" />
               </label>
               <label>
-                Sex
+                <span>Sex <span className={styles.requiredAsterisk}>*</span></span>
                 <select value={residentForm.sex} onChange={(event) => updateForm("sex", event.target.value)}>
                   <option value="">Select sex</option>
                   <option value="Male">Male</option>
@@ -574,7 +574,7 @@ export function ResidentsPanel() {
                 </select>
               </label>
               <label>
-                Contact Number
+                <span>Contact Number <span className={styles.requiredAsterisk}>*</span></span>
                 <input
                   value={residentForm.contact_number}
                   onBlur={() => {
@@ -600,7 +600,7 @@ export function ResidentsPanel() {
             <h3><span aria-hidden="true" />Location Information</h3>
             <div className={styles.formGrid}>
               <label className={styles.wideField}>
-                Complete Address
+                <span>Complete Address <span className={styles.requiredAsterisk}>*</span></span>
                 <input value={residentForm.complete_address} onChange={(event) => updateForm("complete_address", event.target.value)} placeholder="e.g., 123 Main St." />
               </label>
               <label>
