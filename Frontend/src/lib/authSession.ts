@@ -10,10 +10,13 @@ export type StoredSessionUser = {
   full_name?: string;
   email?: string;
   role_id?: number | null;
+  role?: string;
   role_name?: string;
   role_label?: string;
   barangay_id?: number | null;
   barangay_name?: string;
+  barangay?: string;
+  department?: string;
   status?: string;
 };
 

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
-import { getDashboardSessionUserId } from "@/lib/dashboardSession";
+import { getDashboardViewer } from "@/lib/dashboardViewer";
 import { filterLogsForViewer } from "@/lib/logVisibility";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET(req: NextRequest) {
   try {
-    const viewer = await getLogViewer(req);
+    const viewer = await getDashboardViewer(req);
     if (!viewer) {
       return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
     }
@@ -36,25 +36,6 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
   }
-}
-
-async function getLogViewer(req: NextRequest) {
-  const userId = getDashboardSessionUserId(req);
-  if (!userId) return null;
-
-  const { data, error } = await supabaseServer
-    .from("app_users")
-    .select("id,role_id,barangay_id,barangay,status")
-    .eq("id", userId)
-    .single();
-
-  if (error || !data || String(data.status ?? "").toLowerCase() !== "active") return null;
-  return {
-    id: String(data.id),
-    role_id: data.role_id == null ? null : Number(data.role_id),
-    barangay_id: data.barangay_id == null ? null : Number(data.barangay_id),
-    barangay_name: String(data.barangay ?? ""),
-  };
 }
 
 export async function POST(req: NextRequest) {
