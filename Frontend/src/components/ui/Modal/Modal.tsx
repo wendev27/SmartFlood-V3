@@ -1,8 +1,11 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import styles from "./Modal.module.css";
+
+let openModalCount = 0;
 
 interface ModalProps {
   isOpen: boolean;
@@ -14,11 +17,31 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, labelledBy, children, className, size = "lg" }: ModalProps) {
-  if (!isOpen) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    openModalCount += 1;
+    document.body.classList.add("modalOpen");
+
+    return () => {
+      openModalCount = Math.max(0, openModalCount - 1);
+      if (openModalCount === 0) {
+        document.body.classList.remove("modalOpen");
+      }
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !isMounted) {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
       className={styles.backdrop}
       aria-hidden={!isOpen}
@@ -31,6 +54,7 @@ export function Modal({ isOpen, onClose, labelledBy, children, className, size =
       <div className={cn(styles.dialog, styles[size], className)} role="dialog" aria-modal="true" aria-labelledby={labelledBy}>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
