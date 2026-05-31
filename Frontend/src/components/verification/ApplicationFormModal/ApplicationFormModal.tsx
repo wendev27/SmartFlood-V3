@@ -1,6 +1,7 @@
 import type { ApplicationFormValues, ModalMode } from "@/types/verification";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { Button } from "@/components/ui/Button/Button";
+import { formatBarangayName } from "@/lib/formatters";
 import styles from "./ApplicationFormModal.module.css";
 
 interface ApplicationFormModalProps {
@@ -49,7 +50,7 @@ function FieldSet({ title, values }: { title: string; values: Array<[string, str
         {values.map(([label, value], index) => (
           <label key={`${label}-${index}`} className={index === 3 && values.length === 4 ? styles.wide : undefined}>
             {label}
-            <input type="text" defaultValue={value} />
+            <input type="text" defaultValue={formatBarangayName(value)} />
           </label>
         ))}
       </div>

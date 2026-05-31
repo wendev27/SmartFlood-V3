@@ -1,6 +1,7 @@
 import type { VerificationApplication } from "@/types/verification";
 import { Badge } from "@/components/ui/Badge/Badge";
 import { Button } from "@/components/ui/Button/Button";
+import { formatBarangayName } from "@/lib/formatters";
 import styles from "./ApplicationCard.module.css";
 
 interface ApplicationCardProps {
@@ -24,16 +25,16 @@ export function ApplicationCard({ application, onReview, onEdit }: ApplicationCa
         </div>
         <div className={styles.details}>
           <p><small>Type</small>{application.type.replace(" ", "\n")}</p>
-          <p><small>Barangay</small>{application.barangay}</p>
+          <p><small>Barangay</small>{formatBarangayName(application.barangay)}</p>
           <p><small>Family Members</small>{application.familyMembers}</p>
           <p><small>Submitted</small>{application.submitted}</p>
         </div>
         <p className={styles.meta}>{application.phone}</p>
-        <p className={styles.meta}>{application.address}</p>
+        <p className={styles.meta}>{formatBarangayName(application.address)}</p>
         {application.approvalNote ? (
           <div className={styles.approvalNote}>
             <p>{application.approvalNote.approvedBy}</p>
-            <p>{application.approvalNote.details}</p>
+            <p>{formatBarangayName(application.approvalNote.details)}</p>
           </div>
         ) : null}
       </div>

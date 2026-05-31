@@ -14,8 +14,8 @@ export const reliefSummaryMock: ReliefSummary[] = [
 export const reliefRecommendationsMock: ReliefRecommendation[] = [
   {
     id: "1",
-    barangay: "Barangay Tanong",
-    riskLevel: "Severity",
+    barangay: "Barangay Tañong",
+    riskLevel: "Severe",
     affectedFamilies: 1200,
     familyFoodPacks: 800,
     medicineKits: 50,
@@ -24,7 +24,7 @@ export const reliefRecommendationsMock: ReliefRecommendation[] = [
     recommendedItems: "Family Food Packs (800), Medicine Kits (50), Relief Goods for Individual (1020)",
     analysisReason: "Flood level severity, 1,200 affected families",
     report:
-      "Located in a low-lying area with frequent flooding during heavy rainfall. Barangay Tanong serves 1,200 families with a total population of 5,420. The barangay is home to 320 elderly residents, 85 persons with disabilities, and 450 4P's beneficiaries who receive livelihood support through 12 active programs. Healthcare services are provided by Tanong Health Center with 8 medical staff serving 23 active medical cases, maintaining a 87% vaccination rate and monitoring 38 maternal cases. As a flood-prone area, disaster preparedness includes 3 evacuation centers, 25 emergency responders, and 1,500 relief goods packs in stock, with the last incident recorded on 2026-04-10. Peace and order is maintained by 15 barangay tanods, with 45 total incidents recorded, 38 resolved and 7 pending cases as of the last incident on 2026-05-15.",
+      "Located in a low-lying area with frequent flooding during heavy rainfall. Barangay Tañong serves 1,200 families with a total population of 5,420. The barangay is home to 320 elderly residents, 85 persons with disabilities, and 450 4P's beneficiaries who receive livelihood support through 12 active programs. Healthcare services are provided by Tañong Health Center with 8 medical staff serving 23 active medical cases, maintaining a 87% vaccination rate and monitoring 38 maternal cases. As a flood-prone area, disaster preparedness includes 3 evacuation centers, 25 emergency responders, and 1,500 relief goods packs in stock, with the last incident recorded on 2026-04-10. Peace and order is maintained by 15 barangay tanods, with 45 total incidents recorded, 38 resolved and 7 pending cases as of the last incident on 2026-05-15.",
   },
   {
     id: "2",
@@ -67,7 +67,7 @@ export const reliefAllocationHistoryMock: ReliefAllocationHistory[] = [
     id: "001",
     date: "2026-05-08",
     time: "09 : 30 AM",
-    barangay: "Barangay Tanong",
+    barangay: "Barangay Tañong",
     familyFoodPacks: 800,
     medicineKits: 50,
     reliefForIndividual: 1020,

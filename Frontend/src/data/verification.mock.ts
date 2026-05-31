@@ -6,11 +6,11 @@ export const verificationApplicationsMock: VerificationApplication[] = [
     name: "Maria Clara Santos",
     status: "pending",
     type: "Resident Registration",
-    barangay: "Barangay Tanong",
+    barangay: "Barangay Tañong",
     familyMembers: "4 members",
     submitted: "2026-05-10 14:30",
     phone: "+63-912-345-6789",
-    address: "123 Rizal Street, Barangay Tanong, Labusan",
+    address: "123 Rizal Street, Barangay Tañong, Labusan",
   },
   {
     initials: "JD",

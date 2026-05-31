@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { getFloodStatusLabel } from "@/lib/statusStyles";
 import {
   generateReliefRecommendations,
@@ -77,7 +78,7 @@ export function ReliefPanel() {
   const activeHistoryDateFilter = historyDateFilter || defaultHistoryDateFilter(history);
   const historyBarangays = useMemo(() => Array.from(new Set(history.map((entry) => entry.barangay).filter(Boolean))).sort(), [history]);
   const filteredHistory = useMemo(() => {
-    const normalizedSearch = historySearch.trim().toLowerCase();
+    const normalizedSearch = normalizeBarangayForCompare(historySearch);
 
     return history
       .filter((entry) => {
@@ -91,11 +92,11 @@ export function ReliefPanel() {
           entry.familyFoodPacks,
           entry.medicineKits,
           entry.reliefForIndividual,
-        ].join(" ").toLowerCase();
+        ].join(" ");
 
         return isInDateFilter(entry.createdAt, activeHistoryDateFilter)
-          && (!historyBarangayFilter || entry.barangay === historyBarangayFilter)
-          && (!normalizedSearch || searchable.includes(normalizedSearch));
+          && (!historyBarangayFilter || normalizeBarangayForCompare(entry.barangay) === normalizeBarangayForCompare(historyBarangayFilter))
+          && (!normalizedSearch || normalizeBarangayForCompare(searchable).includes(normalizedSearch));
       })
       .sort((a, b) => sortHistoryEntries(a, b, historySort));
   }, [activeHistoryDateFilter, history, historyBarangayFilter, historySearch, historySort]);
@@ -200,11 +201,11 @@ export function ReliefPanel() {
                     setSelectedReport(recommendation);
                   }
                 }}
-                aria-label={`View full report for ${recommendation.barangay}`}
+                aria-label={`View full report for ${formatBarangayName(recommendation.barangay)}`}
               >
                 <div className={styles.cardTop}>
                   <span className={styles.rank}>{recommendation.id}</span>
-                  <h4>{recommendation.barangay}</h4>
+                  <h4>{formatBarangayName(recommendation.barangay)}</h4>
                   <button
                     className={styles.viewButton}
                     type="button"
@@ -223,7 +224,7 @@ export function ReliefPanel() {
                   </div>
                   <div>
                     <span>Analysis Reason</span>
-                    <p>{recommendation.analysisReason}</p>
+                    <p>{formatBarangayName(recommendation.analysisReason)}</p>
                   </div>
                 </div>
               </article>
@@ -258,7 +259,7 @@ export function ReliefPanel() {
               <span>Barangay</span>
               <select value={historyBarangayFilter} onChange={(event) => setHistoryBarangayFilter(event.target.value)}>
                 <option value="">All barangays</option>
-                {historyBarangays.map((barangay) => <option key={barangay} value={barangay}>{barangay}</option>)}
+                {historyBarangays.map((barangay) => <option key={barangay} value={barangay}>{formatBarangayName(barangay)}</option>)}
               </select>
             </label>
             <label>
@@ -301,7 +302,7 @@ export function ReliefPanel() {
                   <td title={entry.recommendation_id}>{entry.id}</td>
                   <td>{entry.date}</td>
                   <td>{entry.time}</td>
-                  <td>{entry.barangay}</td>
+                  <td>{formatBarangayName(entry.barangay)}</td>
                   <td>{entry.familyFoodPacks}</td>
                   <td>{entry.medicineKits}</td>
                   <td>{entry.reliefForIndividual}</td>
@@ -382,7 +383,7 @@ export function ReliefPanel() {
           <>
             <header className={styles.reportHeader}>
               <div>
-                <h3 id="barangay-report-title">{selectedReport.barangay}</h3>
+                <h3 id="barangay-report-title">{formatBarangayName(selectedReport.barangay)}</h3>
                 <p>Comprehensive Barangay Information</p>
               </div>
               <button className={styles.closeButtonDark} type="button" onClick={() => setSelectedReport(null)} aria-label="Close">
@@ -393,7 +394,7 @@ export function ReliefPanel() {
               <section className={styles.reportSection}>
                 <h4>Recommendation Summary</h4>
                 <dl className={styles.reportGrid}>
-                  <ReportDetail label="Barangay" value={selectedReport.barangay} />
+                  <ReportDetail label="Barangay" value={formatBarangayName(selectedReport.barangay)} />
                   <ReportDetail label="Risk Level" value={selectedReport.riskLevel} />
                   <ReportDetail label="Affected Family Records" value={selectedReport.affectedFamilies} />
                   <ReportDetail label="Family Food Packs" value={selectedReport.familyFoodPacks} />
@@ -403,13 +404,13 @@ export function ReliefPanel() {
               </section>
               <section className={styles.reportSection}>
                 <h4>Recommended Allocation</h4>
-                <p>{selectedReport.recommendedItems}</p>
+                <p>{formatBarangayName(selectedReport.recommendedItems)}</p>
               </section>
               <section className={styles.reportSection}>
                 <h4>Flood Risk / Fuzzy Logic Explanation</h4>
                 <p>
                   The system uses fuzzy-rule-based flood classification to convert water level readings into understandable risk categories:
-                  Normal is below alert threshold, Flood Alert is around 0.25m to 0.50m, Flood Warning is around 0.75m to 1.00m, and Severity is around 1.20m to 1.50m.
+                  Normal is below alert threshold, Flood Alert is around 0.25m to 0.50m, Flood Warning is around 0.75m to 1.00m, and Severe is around 1.20m to 1.50m.
                   {!selectedReport.hasSensorReading ? " No latest sensor reading was available, so the recommendation relied more heavily on family vulnerability data." : ""}
                 </p>
                 <dl className={styles.reportGrid}>
@@ -431,7 +432,7 @@ export function ReliefPanel() {
                 <h4>AI Reasoning Steps</h4>
                 {(selectedReport.reasoningSteps?.length ?? 0) > 0 ? (
                   <ol className={styles.reasoningList}>
-                    {selectedReport.reasoningSteps?.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+                    {selectedReport.reasoningSteps?.map((step, index) => <li key={`${index}-${step}`}>{formatBarangayName(step)}</li>)}
                   </ol>
                 ) : <p>No detailed reasoning steps were returned for this historical recommendation.</p>}
               </section>
@@ -441,7 +442,7 @@ export function ReliefPanel() {
               </section>
               <section className={styles.reportSection}>
                 <h4>Final Analysis Reason</h4>
-                <p>{selectedReport.report}</p>
+                <p>{formatBarangayName(selectedReport.report)}</p>
               </section>
             </div>
           </>
@@ -523,7 +524,7 @@ function recommendationBarangayKey(row: Record<string, unknown>) {
   const barangayId = row.barangay_id == null ? "" : String(row.barangay_id).trim();
   if (["1", "2", "3"].includes(barangayId)) return barangayId;
 
-  const barangayName = String(row.barangay_name ?? row.barangay ?? "").trim().toLowerCase();
+  const barangayName = normalizeBarangayForCompare(String(row.barangay_name ?? row.barangay ?? ""));
   if (barangayName === "barangay tanong") return "1";
   if (barangayName === "barangay catmon") return "2";
   if (barangayName === "barangay potrero") return "3";
@@ -575,7 +576,7 @@ function affectedFamiliesFromReason(reason: string) {
 }
 
 function riskFromReason(reason: string) {
-  const match = reason.match(/^(Normal|Flood Alert|Flood Warning|Critical|Warning|Severe|Severity)/i);
+  const match = reason.match(/^(Normal|Flood Alert|Flood Warning|Critical|Warning|Severe|severity)/i);
   return match?.[1] ?? "No reading";
 }
 
@@ -648,7 +649,7 @@ function formatAnalysisReason(reason: string) {
   }
 
   if (!normalized) return "Recommendation generated from current flood and resident data.";
-  return ensureSentence(capitalize(normalized.replace(/\bcritical\b/gi, "Severity")));
+  return ensureSentence(capitalize(normalized.replace(/\bcritical\b/gi, "Severe")));
 }
 
 function capitalize(value: string) {
@@ -708,7 +709,7 @@ function isInDateFilter(date: Date, filter: Exclude<HistoryDateFilter, "">) {
 
 function sortHistoryEntries(a: HistoryEntry, b: HistoryEntry, sort: HistorySort) {
   if (sort === "oldest") return a.createdAt.getTime() - b.createdAt.getTime();
-  if (sort === "barangay") return a.barangay.localeCompare(b.barangay);
+  if (sort === "barangay") return formatBarangayName(a.barangay).localeCompare(formatBarangayName(b.barangay));
   if (sort === "food") return b.familyFoodPacks - a.familyFoodPacks;
   if (sort === "medicine") return b.medicineKits - a.medicineKits;
   if (sort === "goods") return b.reliefForIndividual - a.reliefForIndividual;

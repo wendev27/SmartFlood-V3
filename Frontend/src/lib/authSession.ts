@@ -1,4 +1,5 @@
 import type { DashboardUserProfile } from "@/components/layout/AppShell/AppShell";
+import { formatBarangayName } from "@/lib/formatters";
 import { normalizeLogRole } from "@/lib/logVisibility";
 import type { DashboardRole } from "@/types/navigation";
 
@@ -118,7 +119,7 @@ export function roleSubtitleForRole(role: NormalizedRole, user?: StoredSessionUs
   if (role === "super") return "Full Access";
   if (role === "cdrrmo") return "Disaster Response";
   if (role === "cswdd") return "City Welfare";
-  return user?.barangay_name || "Administrator";
+  return formatBarangayName(user?.barangay_name) || "Administrator";
 }
 
 export function logLabelForRole(role: NormalizedRole) {

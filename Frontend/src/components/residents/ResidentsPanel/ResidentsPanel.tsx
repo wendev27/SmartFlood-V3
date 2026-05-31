@@ -9,7 +9,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { getCurrentUser, type StoredSessionUser } from "@/lib/authSession";
 import { fetchJson } from "@/services/apiClient";
+import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import styles from "./ResidentsPanel.module.css";
 
 type ResidentRow = {
@@ -111,6 +113,9 @@ const vulnerabilityCountFields = [
 ] as const;
 
 export function ResidentsPanel() {
+  const currentUser = getCurrentUser();
+  const canViewResidentInfo = canViewResidents(currentUser);
+  const canManageResidentRecords = canManageResidents(currentUser);
   const [residents, setResidents] = useState<ResidentRow[]>([]);
   const [familyClusters, setFamilyClusters] = useState<FamilyRow[]>([]);
   const [residentSearch, setResidentSearch] = useState("");
@@ -241,6 +246,7 @@ export function ResidentsPanel() {
   }, []);
 
   function openAddResident() {
+    if (!canManageResidentRecords) return;
     setResidentModalMode("add");
     setEditingResidentId(null);
     setResidentForm(emptyResidentForm);
@@ -249,6 +255,7 @@ export function ResidentsPanel() {
   }
 
   function openEditResident(resident: ResidentRow) {
+    if (!canManageResidentRecords) return;
     const normalizedBarangay = normalizeBarangay(resident.barangay ?? "", resident.barangay_id ? String(resident.barangay_id) : "");
     const family = familyClusters.find((cluster) => cluster.family_id === resident.family_id);
     setResidentModalMode("edit");
@@ -305,6 +312,10 @@ export function ResidentsPanel() {
   async function submitResident(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError("");
+    if (!canManageResidentRecords) {
+      setIsResidentModalOpen(false);
+      return;
+    }
 
     const normalizedBarangay = normalizeBarangay(residentForm.barangay_name, residentForm.barangay_id);
     const validationError = validateResidentForm(residentForm, normalizedBarangay);
@@ -366,6 +377,14 @@ export function ResidentsPanel() {
     }
   }
 
+  if (!canViewResidentInfo) {
+    return (
+      <section className={styles.panel} aria-label="Resident information">
+        <EmptyState title="Resident information is not available for this account." description="Your current role does not include access to resident records." />
+      </section>
+    );
+  }
+
   return (
     <section className={styles.panel} aria-label="Resident information">
       <div className={styles.scrollArea}>
@@ -383,9 +402,11 @@ export function ResidentsPanel() {
                   onChange={(event) => setResidentSearch(event.target.value)}
                 />
               </label>
-              <button className={styles.addButton} type="button" onClick={openAddResident}>
-                + Add New Resident
-              </button>
+              {canManageResidentRecords ? (
+                <button className={styles.addButton} type="button" onClick={openAddResident}>
+                  + Add New Resident
+                </button>
+              ) : null}
             </div>
             {residentsError ? (
               <ErrorState title="Unable to Load Residents" message={residentsError} retryLabel="Retry" onRetry={refreshResidents} />
@@ -417,14 +438,18 @@ export function ResidentsPanel() {
                       </td>
                       <td>{resident.age}</td>
                       <td>{resident.sex}</td>
-                      <td>{resident.address}</td>
-                      <td>{resident.barangay}</td>
+                      <td>{formatBarangayName(resident.address)}</td>
+                      <td>{formatBarangayName(resident.barangay)}</td>
                       <td>{resident.contact}</td>
                       <td>
-                        <button className={styles.editButton} type="button" onClick={() => openEditResident(resident)}>
-                          <span aria-hidden="true">/</span>
-                          Edit
-                        </button>
+                        {canManageResidentRecords ? (
+                          <button className={styles.editButton} type="button" onClick={() => openEditResident(resident)}>
+                            <span aria-hidden="true">/</span>
+                            Edit
+                          </button>
+                        ) : (
+                          <span className={styles.viewOnlyText}>View only</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -439,8 +464,8 @@ export function ResidentsPanel() {
                         <EmptyState
                           title={residents.length === 0 ? "No residents found" : "No residents match your search"}
                           description={residents.length === 0 ? "Resident records will appear here once they are created." : "Try another name, address, ID, age, sex, or contact number."}
-                          actionLabel={residents.length === 0 ? "Add Resident" : undefined}
-                          onAction={residents.length === 0 ? openAddResident : undefined}
+                          actionLabel={canManageResidentRecords && residents.length === 0 ? "Add Resident" : undefined}
+                          onAction={canManageResidentRecords && residents.length === 0 ? openAddResident : undefined}
                         />
                       </td>
                     </tr>
@@ -525,7 +550,7 @@ export function ResidentsPanel() {
         </article>
       </div>
       <Modal
-        isOpen={isResidentModalOpen}
+        isOpen={canManageResidentRecords && isResidentModalOpen}
         onClose={() => setIsResidentModalOpen(false)}
         labelledBy="resident-form-title"
         className={styles.residentDialog}
@@ -612,7 +637,7 @@ export function ResidentsPanel() {
                 <select value={residentForm.barangay_id} onChange={(event) => handleBarangayChange(event.target.value)}>
                   <option value="">Select barangay</option>
                   {barangays.map((barangay, index) => (
-                    <option key={barangay.id || `${barangay.name}-${index}`} value={barangay.id}>{barangay.name}</option>
+                    <option key={barangay.id || `${barangay.name}-${index}`} value={barangay.id}>{formatBarangayName(barangay.name)}</option>
                   ))}
                 </select>
               </label>
@@ -662,7 +687,7 @@ export function ResidentsPanel() {
                       >
                         <td>{family.familyName}</td>
                         <td>{family.familyHead}</td>
-                        <td>{family.completeAddress || family.street}</td>
+                        <td>{formatBarangayName(family.completeAddress || family.street)}</td>
                         <td>
                           <button className={styles.editButton} type="button" onClick={() => family.family_id && selectFamily(family.family_id)}>
                             Select
@@ -757,7 +782,7 @@ export function ResidentsPanel() {
                           <td>{resident.sex}</td>
                           <td>{resident.contact}</td>
                           <td>{resident.is_family_head ? "Yes" : "No"}</td>
-                          <td>{resident.address}</td>
+                          <td>{formatBarangayName(resident.address)}</td>
                         </tr>
                       ))}
                       {connectedResidents.length === 0 ? (
@@ -835,17 +860,52 @@ function mapFamily(row: Record<string, unknown>): FamilyRow {
 }
 
 function matchesSearch(search: string, values: unknown[]) {
-  const normalizedSearch = search.trim().toLowerCase();
+  const normalizedSearch = normalizeBarangayForCompare(search);
   if (!normalizedSearch) return true;
 
-  return values.some((value) => String(value ?? "").toLowerCase().includes(normalizedSearch));
+  return values.some((value) => normalizeBarangayForCompare(String(value ?? "")).includes(normalizedSearch));
+}
+
+function canManageResidents(user: StoredSessionUser | null) {
+  const role = residentRoleText(user);
+  const roleId = Number(user?.role_id);
+
+  if (roleId === 1 || role.includes("super")) return true;
+  if (roleId === 4 || role.includes("barangay")) return true;
+
+  return false;
+}
+
+function canViewResidents(user: StoredSessionUser | null) {
+  const role = residentRoleText(user);
+  const roleId = Number(user?.role_id);
+
+  return (
+    roleId === 1
+    || roleId === 3
+    || roleId === 4
+    || role.includes("super")
+    || role.includes("cswdd")
+    || role.includes("city welfare")
+    || role.includes("barangay")
+  );
+}
+
+function residentRoleText(user: StoredSessionUser | null) {
+  const userRecord = (user ?? {}) as StoredSessionUser & { role?: unknown; department?: unknown };
+  return [
+    userRecord.role,
+    userRecord.role_name,
+    userRecord.role_label,
+    userRecord.department,
+  ].map((value) => String(value ?? "")).join(" ").toLowerCase();
 }
 
 function Detail({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
       <dt>{label}</dt>
-      <dd>{value === "" ? "-" : value}</dd>
+      <dd>{value === "" ? "-" : formatBarangayName(String(value))}</dd>
     </div>
   );
 }
@@ -914,8 +974,8 @@ function normalizeBarangay(barangayName: string, barangayId: string) {
   const selected = barangays.find((barangay) => barangay.id === barangayId);
   if (selected) return selected;
 
-  const normalizedName = barangayName.trim().toLowerCase().replace(/^barangay\s+/, "");
-  return barangays.find((barangay) => barangay.name.toLowerCase().replace(/^barangay\s+/, "") === normalizedName);
+  const normalizedName = normalizeBarangayForCompare(barangayName).replace(/^barangay\s+/, "");
+  return barangays.find((barangay) => normalizeBarangayForCompare(barangay.name).replace(/^barangay\s+/, "") === normalizedName);
 }
 
 function buildResidentPayload(form: ResidentFormState, barangay: { id: string; name: string }) {

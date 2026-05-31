@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
 import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel } from "@/lib/statusStyles";
 import { getFloodMonitoringData, getSensorHistory, type FloodHistoryRow } from "@/services/floodService";
@@ -79,7 +80,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
   const [groupBy, setGroupBy] = useState<HistoryGroup>("daily");
   const [barangay, setBarangay] = useState("");
   const [sensor, setSensor] = useState("");
-  const [severity, setSeverity] = useState("");
+  const [levelFilter, setLevelFilter] = useState("");
   const [search, setSearch] = useState("");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -116,24 +117,24 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
   ])).values()).sort((a, b) => a.label.localeCompare(b.label)), [history]);
   const filteredHistory = useMemo(() => history.filter((reading) => {
     const date = reading.createdAt ? new Date(reading.createdAt) : null;
-    const normalizedSearch = search.trim().toLowerCase();
+    const normalizedSearch = normalizeBarangayForCompare(search);
     const searchable = [
       formatTimestamp(reading.createdAt),
       reading.sensorName,
       reading.sensorId,
       reading.street,
-      reading.barangayName,
+      formatBarangayName(reading.barangayName),
       reading.distanceCm == null ? "" : `${reading.distanceCm.toFixed(2)}cm`,
       formatWaterLevel(reading.waterLevelM),
-      historySeverity(reading.waterLevelM, reading.computedStatus),
-    ].join(" ").toLowerCase();
+      historyLevel(reading.waterLevelM, reading.computedStatus),
+    ].join(" ");
 
     return isInHistoryRange(date, range, customStart, customEnd)
-      && (!barangay || reading.barangayName === barangay)
+      && (!barangay || normalizeBarangayForCompare(reading.barangayName) === normalizeBarangayForCompare(barangay))
       && (!sensor || reading.sensorId === sensor)
-      && (!severity || historySeverity(reading.waterLevelM, reading.computedStatus) === severity)
-      && (!normalizedSearch || searchable.includes(normalizedSearch));
-  }), [barangay, customEnd, customStart, history, range, search, sensor, severity]);
+      && (!levelFilter || historyLevel(reading.waterLevelM, reading.computedStatus) === levelFilter)
+      && (!normalizedSearch || normalizeBarangayForCompare(searchable).includes(normalizedSearch));
+  }), [barangay, customEnd, customStart, history, levelFilter, range, search, sensor]);
   const timeline = useMemo(() => groupHistory(filteredHistory, groupBy), [filteredHistory, groupBy]);
   const timelineMax = Math.max(1, ...timeline.map((group) => group.maxLevel));
   const chartPoints = timelinePoints(timeline, timelineMax);
@@ -146,7 +147,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
     setGroupBy("daily");
     setBarangay("");
     setSensor("");
-    setSeverity("");
+    setLevelFilter("");
     setSearch("");
     setCustomStart("");
     setCustomEnd("");
@@ -202,7 +203,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
               <span>Barangay</span>
               <select value={barangay} onChange={(event) => setBarangay(event.target.value)}>
                 <option value="">All barangays</option>
-                {barangays.map((item) => <option key={item} value={item}>{item}</option>)}
+                {barangays.map((item) => <option key={item} value={item}>{formatBarangayName(item)}</option>)}
               </select>
             </label>
             <label>
@@ -213,13 +214,13 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
               </select>
             </label>
             <label>
-              <span>Severity</span>
-              <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
+              <span>Level</span>
+              <select value={levelFilter} onChange={(event) => setLevelFilter(event.target.value)}>
                 <option value="">All levels</option>
                 <option value="Normal">Normal</option>
                 <option value="Flood Alert">Flood Alert</option>
                 <option value="Flood Warning">Flood Warning</option>
-                <option value="Severity">Severity</option>
+                <option value="Severe">Severe</option>
                 <option value="No reading">No reading</option>
               </select>
             </label>
@@ -239,8 +240,8 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
           <div className={styles.historySummary}>
             <HistoryMetric label="Total Records" value={filteredHistory.length} />
             <HistoryMetric label="Highest Water Level" value={`${highestWaterLevel.toFixed(2)}m`} />
-            <HistoryMetric label="Severity Count" value={countHistorySeverity(filteredHistory, "Severity")} />
-            <HistoryMetric label="Warning Count" value={countHistorySeverity(filteredHistory, "Flood Warning")} />
+            <HistoryMetric label="Severe Count" value={countHistoryLevel(filteredHistory, "Severe")} />
+            <HistoryMetric label="Warning Count" value={countHistoryLevel(filteredHistory, "Flood Warning")} />
             <HistoryMetric label="Latest Reading" value={formatTimestamp(latestReadingTime)} />
           </div>
 
@@ -263,7 +264,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
               </svg>
               {timeline.map((group, index) => (
                 <span
-                  className={`${styles.analyticsPoint} ${styles[severityPointClass(historySeverity(group.maxLevel))]}`}
+                  className={`${styles.analyticsPoint} ${styles[levelPointClass(historyLevel(group.maxLevel))]}`}
                   key={group.key}
                   style={timelinePointStyle(index, timeline.length, group.maxLevel, timelineMax)}
                   tabIndex={0}
@@ -273,7 +274,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
                     <small>{group.label}</small>
                     <b>{group.maxLevel.toFixed(2)}m</b>
                     <em>{group.count} records</em>
-                    <em>{historySeverity(group.maxLevel)}</em>
+                    <em>{historyLevel(group.maxLevel)}</em>
                   </span>
                 </span>
               ))}
@@ -301,7 +302,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
                   <th>Barangay</th>
                   <th>Distance</th>
                   <th>Max Level</th>
-                  <th>Severity</th>
+                  <th>Level</th>
                 </tr>
               </thead>
               <tbody>
@@ -309,10 +310,10 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
                   <tr key={historyRecordKey(record, index)}>
                     <td>{formatTimestamp(record.createdAt)}</td>
                     <td>{record.sensorName}{record.street ? ` - ${record.street}` : ""}</td>
-                    <td>{record.barangayName}</td>
+                    <td>{formatBarangayName(record.barangayName)}</td>
                     <td>{record.distanceCm == null ? "-" : `${record.distanceCm.toFixed(2)}cm`}</td>
                     <td>{formatWaterLevel(record.waterLevelM)}</td>
-                    <td><SeverityBadge level={historySeverity(record.waterLevelM, record.computedStatus)} /></td>
+                    <td><LevelBadge level={historyLevel(record.waterLevelM, record.computedStatus)} /></td>
                   </tr>
                 ))}
                 {!isLoading && filteredHistory.length === 0 ? (
@@ -409,7 +410,7 @@ function FloodHeatmap({ onBack, userProfile }: MonitoringSubpageProps) {
             <span><i className={styles.legendNormal} />Normal</span>
             <span><i className={styles.legendAlert} />Flood Alert</span>
             <span><i className={styles.legendWarning} />Flood Warning</span>
-            <span><i className={styles.legendCritical} />Severity</span>
+            <span><i className={styles.legendCritical} />Severe</span>
             <span><i className={styles.legendNoReading} />No reading</span>
           </div>
         </div>
@@ -450,7 +451,7 @@ function FloodHeatmap({ onBack, userProfile }: MonitoringSubpageProps) {
           <span><i className={styles.legendNormal} />Normal</span>
           <span><i className={styles.legendAlert} />Flood Alert</span>
           <span><i className={styles.legendWarning} />Flood Warning</span>
-          <span><i className={styles.legendCritical} />Severity</span>
+          <span><i className={styles.legendCritical} />Severe</span>
           <span><i className={styles.legendNoReading} />No reading</span>
         </div>
       </article>
@@ -487,12 +488,12 @@ function FloodHeatmap({ onBack, userProfile }: MonitoringSubpageProps) {
           <p>{narrativeFor(latestReadings, highestReading, highestRiskBarangay)}</p>
           <dl className={styles.reportGrid}>
             <ReportDetail label="Sensor Nodes" value={latestReadings.length} />
-            <ReportDetail label="Severity" value={countRisk(latestReadings, "severity")} />
+            <ReportDetail label="Severe" value={countRisk(latestReadings, "severity")} />
             <ReportDetail label="Warning" value={countRisk(latestReadings, "flood_warning")} />
             <ReportDetail label="Alert" value={countRisk(latestReadings, "flood_alert")} />
             <ReportDetail label="Normal" value={countRisk(latestReadings, "normal")} />
             <ReportDetail label="Highest Water Level" value={highestReading ? `${highestReading.sensorName} - ${formatWaterLevel(highestReading.waterLevelM)}` : "No reading"} />
-            <ReportDetail label="Highest Risk Barangay" value={highestRiskBarangay || "No reading"} />
+            <ReportDetail label="Highest Risk Barangay" value={formatBarangayName(highestRiskBarangay) || "No reading"} />
             <ReportDetail label="Latest Reading" value={formatTimestamp(history[0]?.createdAt ?? null)} />
           </dl>
         </div>
@@ -607,7 +608,7 @@ function riskDistributionFor(readings: FloodHistoryRow[]) {
     { label: "Normal", group: "normal", dot: "legendNormal", valueTone: "normalText" },
     { label: "Flood Alert", group: "flood_alert", dot: "legendAlert", valueTone: "alertText" },
     { label: "Flood Warning", group: "flood_warning", dot: "legendWarning", valueTone: "warningText" },
-    { label: "Severity", group: "severity", dot: "legendCritical", valueTone: "criticalText" },
+    { label: "Severe", group: "severity", dot: "legendCritical", valueTone: "criticalText" },
     { label: "No reading", group: "no_reading", dot: "legendNoReading", valueTone: "noReadingText" },
   ];
 
@@ -662,7 +663,7 @@ function narrativeFor(readings: FloodHistoryRow[], highest: FloodHistoryRow | nu
   const severity = countRisk(readings, "severity");
   const warning = countRisk(readings, "flood_warning");
   const alert = countRisk(readings, "flood_alert");
-  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${severity} severity, ${warning} warning, and ${alert} alert sensor readings. Immediate monitoring is recommended.`;
+  return `Based on the latest sensor readings, ${formatBarangayName(barangay || highest.barangayName)} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${severity} severe, ${warning} warning, and ${alert} alert sensor readings. Immediate monitoring is recommended.`;
 }
 
 function formatWaterLevel(value: number | null) {
@@ -678,7 +679,7 @@ function formatTimestamp(value: string | null) {
 
 type HistoryRange = "today" | "last7" | "last28" | "month" | "custom";
 type HistoryGroup = "hourly" | "daily" | "weekly" | "monthly" | "yearly";
-type HistorySeverity = "Normal" | "Flood Alert" | "Flood Warning" | "Severity" | "No reading";
+type HistoryLevel = "Normal" | "Flood Alert" | "Flood Warning" | "Severe" | "No reading";
 type HistoryChartGroup = {
   key: string;
   label: string;
@@ -760,8 +761,8 @@ function historyBucket(date: Date, groupBy: HistoryGroup) {
   return { key: `${year}-${month}-${day}`, label: date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }), shortLabel: date.toLocaleDateString([], { month: "short", day: "numeric" }) };
 }
 
-function historySeverity(level: number | null, computedStatus = ""): HistorySeverity {
-  return getFloodStatusLabel(computedStatus, level) as HistorySeverity;
+function historyLevel(level: number | null, computedStatus = ""): HistoryLevel {
+  return getFloodStatusLabel(computedStatus, level) as HistoryLevel;
 }
 
 function timelinePoints(groups: HistoryChartGroup[], max: number) {
@@ -824,12 +825,12 @@ function localDateKey(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 }
 
-function SeverityBadge({ level }: { level: HistorySeverity }) {
+function LevelBadge({ level }: { level: HistoryLevel }) {
   return <Badge tone={getFloodBadgeTone(level)}>{level}</Badge>;
 }
 
-function severityPointClass(level: HistorySeverity) {
-  if (level === "Severity") return "pointCritical";
+function levelPointClass(level: HistoryLevel) {
+  if (level === "Severe") return "pointCritical";
   if (level === "Flood Warning") return "pointWarning";
   if (level === "Flood Alert") return "pointAlert";
   if (level === "No reading") return "pointNoReading";
@@ -842,8 +843,8 @@ function historyRecordKey(reading: FloodHistoryRow, index: number) {
   return `${reading.sensorName}-${reading.createdAt ?? "no-date"}-${index}`;
 }
 
-function countHistorySeverity(readings: FloodHistoryRow[], severity: HistorySeverity) {
-  return readings.filter((reading) => historySeverity(reading.waterLevelM, reading.computedStatus) === severity).length;
+function countHistoryLevel(readings: FloodHistoryRow[], level: HistoryLevel) {
+  return readings.filter((reading) => historyLevel(reading.waterLevelM, reading.computedStatus) === level).length;
 }
 
 function HistoryMetric({ label, value }: { label: string; value: string | number }) {
@@ -906,7 +907,7 @@ const alertLevels = [
     tone: "warning",
   },
   {
-    name: "Severity",
+    name: "Severe",
     range: "1.20m - 1.50m",
     action: "Suggested Automated Action",
     note: "Chest-deep, forced evacuation",
@@ -916,9 +917,9 @@ const alertLevels = [
 
 const recentActivity = [
   {
-    title: "Severity triggered at Barangay Tanong",
-    meta: "Water level: 1.35m · 2 minutes ago",
-    badge: "Severity",
+    title: "Severe Alert Detected",
+    meta: "SNS-001 reached Severe level at 1.35m.",
+    badge: "Severe",
     tone: "critical",
   },
   {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SmartFloodIcon, type SmartFloodIconName } from "@/components/icons/SmartFloodIcon";
 import { cn } from "@/lib/cn";
+import { formatBarangayName } from "@/lib/formatters";
 import { getAuditLogs } from "@/services/logsService";
 import type { AuditLog } from "@/types/logs";
 import styles from "./AuditLogs.module.css";
@@ -41,9 +42,9 @@ export function AuditLogs() {
               <div className={styles.logMeta}>
                 <strong>{log.title ?? log.action}</strong>
                 <span>{log.category ?? log.module}</span>
-                <span>{log.department ?? log.actor_role}</span>
+                <span>{formatBarangayName(log.department ?? log.actor_role)}</span>
               </div>
-              <p>{log.description}</p>
+              <p>{formatBarangayName(log.description)}</p>
               <small>{log.action}</small>
               <div className={styles.trace}>
                 <span>{log.timestamp ?? log.created_at}</span>

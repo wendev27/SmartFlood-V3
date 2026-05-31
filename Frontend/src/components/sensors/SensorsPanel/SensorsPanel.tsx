@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/DataTable/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
 import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel, type FloodLevel } from "@/lib/statusStyles";
 import { getSensors } from "@/services/sensorsService";
@@ -88,7 +89,7 @@ export function SensorsPanel() {
   const displayedSensors = useMemo(() => sensors.filter((sensor) => {
     const normalizedSearch = search.trim().toLowerCase();
     return (!normalizedSearch || sensor.sensor_id.toLowerCase().includes(normalizedSearch))
-      && (!barangayFilter || sensor.barangay === barangayFilter)
+      && (!barangayFilter || normalizeBarangayForCompare(sensor.barangay) === normalizeBarangayForCompare(barangayFilter))
       && (!statusFilter || sensor.status === statusFilter)
       && (!levelFilter || sensor.level === levelFilter);
   }), [barangayFilter, levelFilter, search, sensors, statusFilter]);
@@ -143,7 +144,7 @@ export function SensorsPanel() {
           <input type="search" placeholder="Search Sensor ID" aria-label="Search Sensor ID" value={search} onChange={(event) => setSearch(event.target.value)} />
           <select aria-label="Barangay" value={barangayFilter} onChange={(event) => setBarangayFilter(event.target.value)}>
             <option value="">All Barangays</option>
-            {barangays.map((barangay) => <option key={barangay} value={barangay}>{barangay}</option>)}
+            {barangays.map((barangay) => <option key={barangay} value={barangay}>{formatBarangayName(barangay)}</option>)}
           </select>
           <select aria-label="Sensor status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             <option value="">Any Status</option>
@@ -156,7 +157,7 @@ export function SensorsPanel() {
             <option value="Normal">Normal</option>
             <option value="Flood Alert">Flood Alert</option>
             <option value="Flood Warning">Flood Warning</option>
-            <option value="Severity">Severity</option>
+            <option value="Severe">Severe</option>
           </select>
           <button type="button" aria-label="Reset sensor filters" onClick={resetFilters}>X</button>
         </div>
@@ -179,7 +180,7 @@ export function SensorsPanel() {
                 tabIndex={0}
               >
                 <td>{sensor.sensor_id}</td>
-                <td>{sensor.barangay}</td>
+                <td>{formatBarangayName(sensor.barangay)}</td>
                 <td>{sensor.coordinates}</td>
                 <td><Badge tone={sensor.status === "Active" ? "green" : sensor.status === "Inactive" ? "yellow" : "red"}>{sensor.status}</Badge></td>
                 <td><strong className={styles[sensor.floodLevel]}>{sensor.latestReading}</strong></td>
