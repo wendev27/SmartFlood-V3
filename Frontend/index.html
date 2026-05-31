@@ -38,9 +38,9 @@
               <span class="nav-icon home"></span>
               Dashboard
             </a>
-            <a class="nav-link" href="#hardware" data-page="hardware">
-              <span class="nav-icon monitor"></span>
-              Hardware Configuration
+            <a class="nav-link" href="#sensors" data-page="sensors">
+              <span class="nav-icon signal"></span>
+              Sensor History
             </a>
             <a class="nav-link" href="#logs" data-page="logs">
               <span class="nav-icon folder"></span>
@@ -53,10 +53,6 @@
             <a class="nav-link" href="#relief" data-page="relief">
               <span class="nav-icon cube"></span>
               AI-Optimized Relief Allocation
-            </a>
-            <a class="nav-link" href="#sensors" data-page="sensors">
-              <span class="nav-icon signal"></span>
-              Sensor Management
             </a>
             <a class="nav-link" href="#residents" data-page="residents">
               <span class="nav-icon users"></span>
@@ -268,23 +264,12 @@
         </div>
 
         <div class="page-panel" data-panel="logs">
-          <section class="account-panel" aria-label="Account management and audit logs">
-            <div class="account-tabs" role="tablist" aria-label="Account sections">
-              <button class="tab-button active" type="button" data-account-tab="users">
-                <span class="tab-users"></span>
-                User Accounts
-              </button>
-              <button class="tab-button" type="button" data-account-tab="audit">
-                <span class="tab-clock"></span>
-                Audit Logs
-              </button>
-            </div>
-
+          <section class="account-panel" aria-label="Account management">
             <article class="account-table-card account-content active" data-account-panel="users">
               <div class="account-toolbar">
                 <label class="search-field">
                   <span></span>
-                  <input type="search" placeholder="Search by name, email..." />
+                  <input type="search" placeholder="Search by name, email, or role..." />
                 </label>
                 <select aria-label="Department">
                   <option>All Departments</option>
@@ -311,119 +296,54 @@
                 <table class="accounts-table">
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Department</th>
+                      <th>Email</th>
                       <th>Role</th>
+                      <th>Department</th>
+                      <th>Actions</th>
                       <th>Status</th>
-                      <th>Last Login</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <td>NDRRMO@malabon.gov.ph</td>
-                      <td><span class="dept purple">CDRRMO</span></td>
                       <td>Super Admin</td>
-                      <td><span class="state active-state">Active</span></td>
-                      <td>2026-05-10 14:30</td>
-                      <td><span class="action edit"></span><span class="action delete"></span><span class="action view"></span></td>
+                      <td><span class="dept purple">NDRRMO</span></td>
+                      <td>Added sensor</td>
+                      <td><span class="state active-state">Enabled</span></td>
+                      <td><span class="action view"></span> Preview</td>
                     </tr>
                     <tr>
                       <td>barangaypotrero@malabon.gov.ph</td>
-                      <td><span class="dept green">Barangay</span></td>
                       <td>Dept Admin</td>
-                      <td><span class="state active-state">Active</span></td>
-                      <td>2026-05-10 12:15</td>
-                      <td><span class="action edit"></span><span class="action delete"></span><span class="action view"></span></td>
+                      <td><span class="dept green">Barangay Potrero</span></td>
+                      <td>Changed email</td>
+                      <td><span class="state active-state">Enabled</span></td>
+                      <td><span class="action view"></span> Preview</td>
                     </tr>
                     <tr>
                       <td>CSWDD@malabon.gov.ph</td>
-                      <td><span class="dept orange">CSWDD</span></td>
                       <td>Dept Admin</td>
-                      <td><span class="state active-state">Active</span></td>
-                      <td>2026-05-09 16:45</td>
-                      <td><span class="action edit"></span><span class="action delete"></span><span class="action view"></span></td>
+                      <td><span class="dept orange">CSWDD</span></td>
+                      <td>Removed Sensor</td>
+                      <td><span class="state active-state">Enabled</span></td>
+                      <td><span class="action view"></span> Preview</td>
                     </tr>
                     <tr>
                       <td>barangaytanong@malabon.gov.ph</td>
-                      <td><span class="dept green">Barangay</span></td>
                       <td>Dept User</td>
-                      <td><span class="state inactive-state">Inactive</span></td>
-                      <td>2026-05-08 10:20</td>
-                      <td><span class="action edit"></span><span class="action delete"></span><span class="action view"></span></td>
+                      <td><span class="dept green">Barangay Tanong</span></td>
+                      <td>Changed Password</td>
+                      <td><span class="state inactive-state">Disabled</span></td>
+                      <td><span class="action view"></span> Preview</td>
                     </tr>
                     <tr>
                       <td>barangaycatmon@malabon.gov.ph</td>
-                      <td><span class="dept purple">CDRRMO</span></td>
                       <td>Dept User</td>
-                      <td><span class="state active-state">Active</span></td>
-                      <td>2026-05-10 08:30</td>
-                      <td><span class="action edit"></span><span class="action delete"></span><span class="action view"></span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </article>
-
-            <article class="account-table-card account-content" data-account-panel="audit">
-              <div class="account-toolbar audit-toolbar">
-                <label class="search-field">
-                  <span></span>
-                  <input type="search" placeholder="Search audit events..." />
-                </label>
-                <select aria-label="Audit action">
-                  <option>All Actions</option>
-                  <option>Login</option>
-                  <option>Update</option>
-                  <option>Export</option>
-                </select>
-                <select aria-label="Audit severity">
-                  <option>All Severity</option>
-                  <option>Normal</option>
-                  <option>Warning</option>
-                  <option>Critical</option>
-                </select>
-                <button class="export-button" type="button">Export</button>
-              </div>
-              <div class="accounts-table-wrap">
-                <table class="accounts-table">
-                  <thead>
-                    <tr>
-                      <th>Timestamp</th>
-                      <th>User</th>
-                      <th>Action</th>
-                      <th>Severity</th>
-                      <th>IP Address</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>2026-05-10 14:41</td>
-                      <td>NDRRMO@malabon.gov.ph</td>
-                      <td>Operator login verified</td>
-                      <td><span class="state active-state">Normal</span></td>
-                      <td>192.168.0.24</td>
-                    </tr>
-                    <tr>
-                      <td>2026-05-10 13:28</td>
-                      <td>CSWDD@malabon.gov.ph</td>
-                      <td>Relief request exported</td>
-                      <td><span class="state inactive-state">Tracked</span></td>
-                      <td>192.168.0.31</td>
-                    </tr>
-                    <tr>
-                      <td>2026-05-10 08:15</td>
-                      <td>barangaypotrero@malabon.gov.ph</td>
-                      <td>Sensor threshold changed</td>
-                      <td><span class="dept orange">Review</span></td>
-                      <td>192.168.0.18</td>
-                    </tr>
-                    <tr>
-                      <td>2026-05-09 18:02</td>
-                      <td>system</td>
-                      <td>Backup sync completed</td>
-                      <td><span class="state active-state">Normal</span></td>
-                      <td>Internal</td>
+                      <td><span class="dept green">Barangay Catmon</span></td>
+                      <td>Changed Password</td>
+                      <td><span class="state inactive-state">Disabled</span></td>
+                      <td><span class="action view"></span> Preview</td>
                     </tr>
                   </tbody>
                 </table>
@@ -636,10 +556,6 @@
 
         <div class="page-panel" data-panel="accounts">
           <section class="verification-panel" aria-label="Resident account verification">
-            <div class="verification-header-actions">
-              <button class="add-application-button" type="button" data-application-open="add">+ Add Application</button>
-            </div>
-
             <div class="verification-tabs" role="tablist" aria-label="Verification status">
               <button class="verification-tab active" type="button" data-verification-tab="pending">
                 <span class="pending-icon"></span>

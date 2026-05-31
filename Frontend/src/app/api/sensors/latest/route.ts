@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { isValidSensorDocument, normalizeBarangay, resolveSensorCoordinates } from "@/lib/sensorMapping";
 
 export async function GET() {
   try {
@@ -14,23 +15,34 @@ export async function GET() {
     ]).toArray();
 
     const latestReadingMap = new Map(readings.map((reading) => [String(reading._id), reading.doc]));
-    const data = sensors.map(sensor => ({
-      sensorId: String(sensor._id),
-      name: sensor.name,
-      barangay: sensor.barangay,
-      barangayName: sensor.barangayName,
-      street: sensor.street || null,
-      status: sensor.status,
-      waterLevelM: latestReadingMap.get(String(sensor._id))?.waterLevelM ?? null,
-      distanceCm: latestReadingMap.get(String(sensor._id))?.distanceCm ?? null,
-      rainfallMm: latestReadingMap.get(String(sensor._id))?.rainfallMm ?? null,
-      batteryPct: latestReadingMap.get(String(sensor._id))?.batteryPct ?? null,
-      computedStatus: latestReadingMap.get(String(sensor._id))?.computedStatus ?? null,
-      latestReadingAt: latestReadingMap.get(String(sensor._id))?.createdAt ?? null,
-      location: sensor.location,
-      lastSeenAt: sensor.lastSeenAt,
-      latestReading: latestReadingMap.get(String(sensor._id)) || null
-    }));
+    const data = sensors.filter(isValidSensorDocument).map(sensor => {
+      const sensorId = String(sensor.sensorId ?? sensor.sensor_id ?? sensor._id);
+      const reading = latestReadingMap.get(sensorId) ?? latestReadingMap.get(String(sensor._id));
+      const mappedBarangay = normalizeBarangay(sensor.barangayName ?? sensor.barangay);
+      const coordinates = resolveSensorCoordinates(sensor);
+
+      return {
+        sensorId,
+        name: sensor.name,
+        barangay: mappedBarangay.barangay_name,
+        barangayName: mappedBarangay.barangay_name,
+        rawBarangay: sensor.barangay,
+        rawBarangayName: sensor.barangayName,
+        barangay_id: mappedBarangay.barangay_id,
+        street: sensor.street || null,
+        status: sensor.status,
+        waterLevelM: reading?.waterLevelM ?? reading?.waterLevel ?? null,
+        distanceCm: reading?.distanceCm ?? null,
+        rainfallMm: reading?.rainfallMm ?? null,
+        batteryPct: reading?.batteryPct ?? null,
+        computedStatus: reading?.computedStatus ?? reading?.status ?? null,
+        latestReadingAt: reading?.createdAt ?? null,
+        location: coordinates ?? sensor.location ?? null,
+        geo: sensor.geo ?? null,
+        lastSeenAt: sensor.lastSeenAt,
+        latestReading: reading || null
+      };
+    });
 
     return NextResponse.json({ success: true, data });
   } catch (e: any) {

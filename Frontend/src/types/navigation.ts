@@ -1,6 +1,5 @@
 export type PageKey =
   | "dashboard"
-  | "hardware"
   | "logs"
   | "systemLogs"
   | "monitoring"

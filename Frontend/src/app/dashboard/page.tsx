@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell/AppShell";
 import { DashboardPanel } from "@/components/dashboard/DashboardPanel/DashboardPanel";
-import { HardwarePanel } from "@/components/hardware/HardwarePanel/HardwarePanel";
 import { LogsPanel } from "@/components/logs/LogsPanel/LogsPanel";
 import { SystemLogs } from "@/components/logs/SystemLogs/SystemLogs";
 import { MonitoringPanel, type MonitoringView } from "@/components/monitoring/MonitoringPanel/MonitoringPanel";
@@ -15,7 +14,6 @@ import type { PageKey } from "@/types/navigation";
 
 const pageKeys: PageKey[] = [
   "dashboard",
-  "hardware",
   "logs",
   "systemLogs",
   "monitoring",
@@ -27,6 +25,7 @@ const pageKeys: PageKey[] = [
 
 function getPageFromHash(hash: string): PageKey {
   const value = hash.replace("#", "");
+  if (value === "hardware" || value === "sensor-configuration") return "sensors";
   return pageKeys.includes(value as PageKey) ? (value as PageKey) : "dashboard";
 }
 
@@ -62,7 +61,6 @@ export default function DashboardPage() {
       onToggleMobileNav={() => setIsMobileNavOpen((isOpen) => !isOpen)}
     >
       {activePage === "dashboard" ? <DashboardPanel /> : null}
-      {activePage === "hardware" ? <HardwarePanel /> : null}
       {activePage === "logs" ? <LogsPanel /> : null}
       {activePage === "systemLogs" ? <SystemLogs /> : null}
       {activePage === "monitoring" ? <MonitoringPanel onViewChange={setMonitoringView} /> : null}

@@ -4,13 +4,12 @@ const pageCopy = {
     subtitle: "Manage your barangay operations efficiently and effectively",
   },
   hardware: {
-    title: "Arduino Control Panel",
-    subtitle:
-      "Remotely configure your ESP32 sensor setup, monitor real-time data, and send commands through a modern interface.",
+    title: "Sensor History",
+    subtitle: "View and monitor sensor device readings",
   },
   logs: {
     title: "Account Management",
-    subtitle: "Manage user accounts and view system audit logs",
+    subtitle: "Manage user accounts",
   },
   monitoring: {
     title: "Flood Monitoring Module",
@@ -22,7 +21,7 @@ const pageCopy = {
   },
   sensors: {
     title: "Sensor History",
-    subtitle: "Configure and monitor sensor devices",
+    subtitle: "View and monitor sensor device readings",
   },
   residents: {
     title: "Resident Information",

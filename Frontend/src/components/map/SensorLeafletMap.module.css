@@ -1,0 +1,45 @@
+.mapCanvas {
+  height: 100%;
+  min-height: inherit;
+  width: 100%;
+}
+
+.marker {
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 5px rgba(15, 23, 42, 0.18);
+  display: block;
+  height: 18px;
+  width: 18px;
+}
+
+.critical {
+  background: #ff3040;
+}
+
+.warning {
+  background: #ffb700;
+}
+
+.normal {
+  background: #17a34a;
+}
+
+.offline {
+  background: #94a3b8;
+}
+
+.popup {
+  color: #1e293b;
+  display: grid;
+  font-size: 12px;
+  gap: 4px;
+  min-width: 180px;
+  max-width: 260px;
+  overflow-wrap: anywhere;
+}
+
+.popup strong {
+  color: #0f172a;
+  font-size: 13px;
+}

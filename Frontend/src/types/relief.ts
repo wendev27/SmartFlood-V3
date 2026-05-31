@@ -6,6 +6,7 @@ export interface ReliefSummary {
 }
 
 export interface ReliefInventoryItem {
+  inventory_id?: string;
   id: string;
   name: string;
   unit: string;
@@ -13,7 +14,9 @@ export interface ReliefInventoryItem {
 }
 
 export interface ReliefRecommendation {
+  recommendation_id?: string;
   id: string;
+  barangay_name?: string;
   barangay: string;
   recommendedItems: string;
   analysisReason: string;
@@ -21,7 +24,9 @@ export interface ReliefRecommendation {
 }
 
 export interface ReliefAllocationHistory {
+  recommendation_id?: string;
   id: string;
+  barangay_name?: string;
   date: string;
   time: string;
   barangay: string;

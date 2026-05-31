@@ -17,6 +17,10 @@
 }
 
 .table th {
+  background: #ffffff;
   color: #243245;
   font-weight: 800;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }

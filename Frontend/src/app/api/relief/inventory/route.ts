@@ -21,9 +21,15 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const payload = {
+      family_food_packs: Number(body.family_food_packs ?? 0),
+      medicine_kits: Number(body.medicine_kits ?? 0),
+      relief_goods_individual: Number(body.relief_goods_individual ?? 0),
+      updated_by: body.updated_by ?? null,
+    };
     const { data, error } = await supabaseServer
       .from("relief_inventory")
-      .insert([body])
+      .insert([payload])
       .select()
       .single();
 

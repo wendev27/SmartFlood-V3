@@ -19,7 +19,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const { data: application, error: applicationError } = await supabaseServer
       .from("resident_applications")
       .select("*")
-      .eq("id", id)
+      .eq("application_id", id)
       .single();
 
     if (applicationError) {
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       const { data, error } = await supabaseServer
         .from("resident_applications")
         .update(reviewFields)
-        .eq("id", id)
+        .eq("application_id", id)
         .select()
         .single();
 
@@ -49,7 +49,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     const residentBase = {
       ...application,
-      application_id: application.id,
+      application_id: application.application_id,
       source: application.source ?? "resident_application",
       status: "active",
       created_by: body.reviewed_by ?? application.created_by ?? null,
@@ -82,28 +82,28 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
       const { error: familyUpdateError } = await supabaseServer
         .from("families")
-        .update({ family_head_id: resident.id, family_head_name: fullName(application) })
-        .eq("id", family.id);
+        .update({ family_head_id: resident.resident_id, family_head_name: fullName(application) })
+        .eq("family_id", family.family_id);
 
       if (familyUpdateError) return NextResponse.json({ success: false, error: familyUpdateError.message }, { status: 500 });
 
       const { error: residentUpdateError } = await supabaseServer
         .from("residents_v3")
-        .update({ family_id: family.id })
-        .eq("id", resident.id);
+        .update({ family_id: family.family_id })
+        .eq("resident_id", resident.resident_id);
 
       if (residentUpdateError) return NextResponse.json({ success: false, error: residentUpdateError.message }, { status: 500 });
 
       const { data: reviewedApplication, error: reviewError } = await supabaseServer
         .from("resident_applications")
         .update(reviewFields)
-        .eq("id", id)
+        .eq("application_id", id)
         .select()
         .single();
 
       if (reviewError) return NextResponse.json({ success: false, error: reviewError.message }, { status: 500 });
 
-      return NextResponse.json({ success: true, data: { application: reviewedApplication, resident: { ...resident, family_id: family.id }, family } });
+      return NextResponse.json({ success: true, data: { application: reviewedApplication, resident: { ...resident, family_id: family.family_id }, family } });
     }
 
     const familyId = body.selected_family_id ?? application.selected_family_id ?? application.family_id;
@@ -123,7 +123,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const { data: reviewedApplication, error: reviewError } = await supabaseServer
       .from("resident_applications")
       .update(reviewFields)
-      .eq("id", id)
+      .eq("application_id", id)
       .select()
       .single();
 

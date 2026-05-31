@@ -150,6 +150,16 @@
   color: #ef233c;
 }
 
+.empty {
+  background: #eef6ff;
+  border-radius: 8px;
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+  padding: 10px 12px;
+}
+
 @media (max-width: 720px) {
   .card {
     padding: 12px;

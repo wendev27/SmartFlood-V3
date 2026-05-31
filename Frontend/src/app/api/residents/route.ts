@@ -4,7 +4,12 @@ import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET() {
   try {
-    const { data, error } = await supabaseServer.from('residents_v3').select('*');
+    const { data, error } = await supabaseServer
+      .from("residents_v3")
+      .select("resident_id,last_name,first_name,middle_name,suffix,age,sex,contact_number,complete_address,street,barangay_id,barangay_name,is_family_head,family_id,status,created_at,updated_at")
+      .or("status.is.null,status.neq.inactive")
+      .order("created_at", { ascending: false });
+
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     return NextResponse.json({ success: true, data });
   } catch (e: any) {
@@ -16,7 +21,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    if (!body.last_name || !body.first_name || !body.barangay_id) {
+    if (!body.last_name || !body.first_name || !body.complete_address || !body.barangay_id || !body.barangay_name) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
     }
 
@@ -49,19 +54,25 @@ export async function POST(req: NextRequest) {
       const familyHeadName = fullName(body);
       const { error: familyUpdateError } = await supabaseServer
         .from("families")
-        .update({ family_head_id: resident.id, family_head_name: familyHeadName })
-        .eq("id", family.id);
+        .update({ family_head_id: resident.resident_id, family_head_name: familyHeadName })
+        .eq("family_id", family.family_id);
 
       if (familyUpdateError) return NextResponse.json({ success: false, error: familyUpdateError.message }, { status: 500 });
 
       const { error: residentUpdateError } = await supabaseServer
         .from("residents_v3")
-        .update({ family_id: family.id })
-        .eq("id", resident.id);
+        .update({ family_id: family.family_id })
+        .eq("resident_id", resident.resident_id);
 
       if (residentUpdateError) return NextResponse.json({ success: false, error: residentUpdateError.message }, { status: 500 });
 
-      return NextResponse.json({ success: true, data: { resident: { ...resident, family_id: family.id }, family } }, { status: 201 });
+      return NextResponse.json({
+        success: true,
+        data: {
+          resident: { ...resident, family_id: family.family_id },
+          family: { ...family, family_head_id: resident.resident_id, family_head_name: familyHeadName },
+        },
+      }, { status: 201 });
     }
 
     const familyId = body.selected_family_id ?? body.family_id;

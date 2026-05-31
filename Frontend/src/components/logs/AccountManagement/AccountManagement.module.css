@@ -7,6 +7,16 @@
   padding: 30px 32px;
 }
 
+.errorMessage {
+  background: #fef3f2;
+  border-radius: 8px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
 .toolbar {
   align-items: center;
   display: grid;
@@ -73,40 +83,219 @@
   color: #ffffff;
 }
 
-.edit,
-.delete,
+.emailLink {
+  display: block;
+  color: #334155;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.userName {
+  color: #1f2937;
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.actionStack,
+.rowActions {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.actionStack button {
+  background: #f8fbff;
+  border: 1px solid #bfd5ff;
+  border-radius: 7px;
+  color: var(--color-blue);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  min-height: 28px;
+  padding: 0 9px;
+}
+
+.actionStack button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.previewButton {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 8px;
+  padding: 0;
+}
+
+.accountDialog {
+  --modal-width: 820px;
+  border-radius: 8px;
+  width: min(var(--modal-width), calc(100dvw - 32px));
+}
+
+.passwordDialog {
+  --modal-width: 480px;
+  border-radius: 8px;
+  width: min(var(--modal-width), calc(100dvw - 32px));
+}
+
+.modalHeader {
+  align-items: flex-start;
+  background: var(--color-blue);
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  min-height: 92px;
+  padding: 24px 28px;
+}
+
+.modalHeader > div {
+  min-width: 0;
+}
+
+.modalHeader h3 {
+  font-size: 22px;
+  line-height: 1.1;
+  margin: 0 0 6px;
+}
+
+.modalHeader p {
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 12px;
+  margin: 0;
+}
+
+.modalHeader button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 20px;
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  width: 34px;
+}
+
+.modalHeader button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.accountForm,
+.detailGrid {
+  padding: 26px 28px;
+}
+
+.formGrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.accountForm label {
+  color: #334155;
+  display: grid;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 7px;
+}
+
+.accountForm input,
+.accountForm select {
+  border: 1px solid #d8e2ee;
+  border-radius: 8px;
+  color: #1f2937;
+  font-size: 13px;
+  height: 42px;
+  min-width: 0;
+  padding: 0 12px;
+  width: 100%;
+}
+
+.accountForm input:focus,
+.accountForm select:focus {
+  outline: 2px solid rgba(15, 97, 255, 0.22);
+  outline-offset: 1px;
+}
+
+.wideField {
+  grid-column: 1 / -1;
+}
+
+.formError {
+  background: #fef3f2;
+  border-radius: 8px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
+.formActions {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+  margin-top: 24px;
+}
+
+.detailGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+  padding-bottom: 16px;
+}
+
+.detailGrid div {
+  background: #f8fbff;
+  border: 1px solid #e6eef8;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.detailGrid dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.detailGrid dd {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.previewActions {
+  border-top: 1px solid #e6eef8;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 18px 28px 26px;
+}
+
 .view {
   display: inline-block;
   height: 17px;
-  margin-right: 18px;
   position: relative;
   vertical-align: middle;
   width: 17px;
 }
 
-.edit::before {
-  border-bottom: 2px solid var(--color-blue);
-  content: "";
-  height: 10px;
-  left: 3px;
-  position: absolute;
-  top: 1px;
-  transform: rotate(-45deg);
-  width: 5px;
-}
-
-.delete::before {
-  background: #ef233c;
-  content: "";
-  height: 12px;
-  left: 5px;
-  position: absolute;
-  top: 4px;
-  width: 8px;
-}
-
 .view::before {
-  border: 2px solid #334155;
+  border: 2px solid currentColor;
   border-radius: 50%;
   content: "";
   height: 7px;
@@ -119,5 +308,33 @@
 @media (min-width: 900px) {
   .toolbar {
     grid-template-columns: minmax(180px, 1.3fr) repeat(3, minmax(130px, 0.8fr)) auto auto;
+  }
+
+  .formGrid,
+  .detailGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .formActions {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .card {
+    padding: 18px;
+  }
+
+  .accountDialog,
+  .passwordDialog {
+    width: min(var(--modal-width), calc(100dvw - 28px));
+  }
+
+  .modalHeader,
+  .accountForm,
+  .detailGrid,
+  .previewActions {
+    padding-left: 18px;
+    padding-right: 18px;
   }
 }

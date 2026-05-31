@@ -1,10 +1,23 @@
-import { applicationFormDefaultsMock, verificationApplicationsMock } from "@/data/verification.mock";
-import { apiClient } from "@/services/apiClient";
+import type { ApplicationFormValues } from "@/types/verification";
+import { fetchJson } from "@/services/apiClient";
 
 export async function getVerificationApplications() {
-  return apiClient(verificationApplicationsMock);
+  return fetchJson<Record<string, unknown>[]>("/api/resident-applications");
 }
 
 export async function getApplicationFormDefaults() {
-  return apiClient(applicationFormDefaultsMock);
+  return Promise.resolve<ApplicationFormValues>({
+    surname: "",
+    firstName: "",
+    middleName: "",
+    contactNumber: "",
+    ageSex: "",
+    occupation: "",
+    completeAddress: "",
+    barangay: "",
+    totalFamilyMembers: "",
+    householdHead: "",
+    specialNeeds: "",
+    medicalConditions: "",
+  });
 }

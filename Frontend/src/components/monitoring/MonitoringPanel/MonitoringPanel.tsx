@@ -1,8 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
 import { SmartFloodIcon, type SmartFloodIconName } from "@/components/icons/SmartFloodIcon";
+import { Badge } from "@/components/ui/Badge/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { Modal } from "@/components/ui/Modal/Modal";
+import { resolveSensorCoordinates } from "@/lib/sensorMapping";
+import { getFloodMonitoringData, getSensorHistory, type FloodHistoryRow } from "@/services/floodService";
 import styles from "./MonitoringPanel.module.css";
+
+const FloodHeatmapMap = dynamic(
+  () => import("@/components/map/FloodHeatmapMap").then((module) => module.FloodHeatmapMap),
+  { ssr: false },
+);
 
 export type MonitoringView = "main" | "alertLevels" | "heatmap" | "history";
 
@@ -63,6 +76,86 @@ export function MonitoringPanel({ onViewChange }: MonitoringPanelProps) {
 }
 
 function FloodHistory({ onBack }: { onBack: () => void }) {
+  const [history, setHistory] = useState<FloodHistoryRow[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [range, setRange] = useState<HistoryRange>("last28");
+  const [groupBy, setGroupBy] = useState<HistoryGroup>("daily");
+  const [barangay, setBarangay] = useState("");
+  const [sensor, setSensor] = useState("");
+  const [severity, setSeverity] = useState("");
+  const [search, setSearch] = useState("");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const rows = await getSensorHistory();
+        if (!cancelled) {
+          setHistory(rows);
+          setError("");
+        }
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load flood history.");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshVersion]);
+
+  const barangays = useMemo(() => Array.from(new Set(history.map((reading) => reading.barangayName))).sort(), [history]);
+  const sensors = useMemo(() => Array.from(new Map(history.map((reading) => [
+    reading.sensorId,
+    { id: reading.sensorId, label: reading.sensorName || reading.sensorId },
+  ])).values()).sort((a, b) => a.label.localeCompare(b.label)), [history]);
+  const filteredHistory = useMemo(() => history.filter((reading) => {
+    const date = reading.createdAt ? new Date(reading.createdAt) : null;
+    const normalizedSearch = search.trim().toLowerCase();
+    const searchable = [
+      formatTimestamp(reading.createdAt),
+      reading.sensorName,
+      reading.sensorId,
+      reading.street,
+      reading.barangayName,
+      reading.distanceCm == null ? "" : `${reading.distanceCm.toFixed(2)}cm`,
+      formatWaterLevel(reading.waterLevelM),
+      historySeverity(reading.waterLevelM, reading.computedStatus),
+    ].join(" ").toLowerCase();
+
+    return isInHistoryRange(date, range, customStart, customEnd)
+      && (!barangay || reading.barangayName === barangay)
+      && (!sensor || reading.sensorId === sensor)
+      && (!severity || historySeverity(reading.waterLevelM, reading.computedStatus) === severity)
+      && (!normalizedSearch || searchable.includes(normalizedSearch));
+  }), [barangay, customEnd, customStart, history, range, search, sensor, severity]);
+  const timeline = useMemo(() => groupHistory(filteredHistory, groupBy), [filteredHistory, groupBy]);
+  const timelineMax = Math.max(1, ...timeline.map((group) => group.maxLevel));
+  const chartPoints = timelinePoints(timeline, timelineMax);
+  const timelineLabels = timeline.filter((_, index) => index % Math.max(1, Math.ceil(timeline.length / 8)) === 0);
+  const highestWaterLevel = Math.max(0, ...filteredHistory.map((reading) => reading.waterLevelM ?? 0));
+  const latestReadingTime = filteredHistory[0]?.createdAt ?? null;
+
+  function resetHistoryFilters() {
+    setRange("last28");
+    setGroupBy("daily");
+    setBarangay("");
+    setSensor("");
+    setSeverity("");
+    setSearch("");
+    setCustomStart("");
+    setCustomEnd("");
+  }
+
   return (
     <section className={styles.historyPage} aria-label="Flood history">
       <button className={styles.backButton} type="button" onClick={onBack}>
@@ -70,34 +163,126 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
         Back
       </button>
 
-      <h2>Flood History</h2>
+      <div className={styles.historyTitleRow}>
+        <h2>Flood History</h2>
+        <button className={styles.refreshHistory} type="button" onClick={() => setRefreshVersion((current) => current + 1)}>
+          {isLoading ? "Refreshing..." : "Refresh Data"}
+        </button>
+      </div>
+      {error ? (
+        <ErrorState title="Unable to Load Flood History" message={error} retryLabel="Retry" onRetry={() => setRefreshVersion((current) => current + 1)} />
+      ) : null}
 
       <article className={styles.historyCard}>
         <h3>Flood History Records</h3>
         <div className={styles.historyBody}>
-          <button className={styles.historyFilter} type="button">
-            <span aria-hidden="true">☷</span>
-            Filters
-          </button>
+          {isLoading ? <LoadingState message="Loading flood history records..." /> : null}
+          <div className={styles.analyticsFilters}>
+            <label>
+              <span>Date Range</span>
+              <select value={range} onChange={(event) => setRange(event.target.value as HistoryRange)}>
+                <option value="today">Today</option>
+                <option value="last7">Last 7 days</option>
+                <option value="last28">Last 28 days</option>
+                <option value="month">This month</option>
+                <option value="custom">Custom range</option>
+              </select>
+            </label>
+            <label>
+              <span>Group By</span>
+              <select value={groupBy} onChange={(event) => setGroupBy(event.target.value as HistoryGroup)}>
+                <option value="hourly">Hourly</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+            <label>
+              <span>Barangay</span>
+              <select value={barangay} onChange={(event) => setBarangay(event.target.value)}>
+                <option value="">All barangays</option>
+                {barangays.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Sensor / Location</span>
+              <select value={sensor} onChange={(event) => setSensor(event.target.value)}>
+                <option value="">All sensors</option>
+                {sensors.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Severity</span>
+              <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
+                <option value="">All levels</option>
+                <option value="Normal">Normal</option>
+                <option value="Warning">Warning</option>
+                <option value="Alert">Alert</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </label>
+            <label className={styles.historySearch}>
+              <span>Search Records</span>
+              <input type="search" placeholder="Search date, sensor, barangay, distance, or level..." value={search} onChange={(event) => setSearch(event.target.value)} />
+            </label>
+            <button className={styles.resetHistoryFilters} type="button" onClick={resetHistoryFilters}>Reset</button>
+          </div>
+          {range === "custom" ? (
+            <div className={styles.customRange}>
+              <label><span>Start Date</span><input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} /></label>
+              <label><span>End Date</span><input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} /></label>
+            </div>
+          ) : null}
 
-          <h4>Flood Level Timeline</h4>
+          <div className={styles.historySummary}>
+            <HistoryMetric label="Total Records" value={filteredHistory.length} />
+            <HistoryMetric label="Highest Water Level" value={`${highestWaterLevel.toFixed(2)}m`} />
+            <HistoryMetric label="Critical Count" value={countHistorySeverity(filteredHistory, "Critical")} />
+            <HistoryMetric label="Warning Count" value={countHistorySeverity(filteredHistory, "Warning")} />
+            <HistoryMetric label="Latest Reading" value={formatTimestamp(latestReadingTime)} />
+          </div>
+
+          <div className={styles.historyChartHeading}>
+            <h4>Flood Level Timeline</h4>
+            <span>{filteredHistory.length} records · grouped {groupBy}</span>
+          </div>
           <div className={styles.lineChartWrap}>
             <div className={styles.historyYAxis}>
-              <span>8</span>
-              <span>6</span>
-              <span>4</span>
-              <span>2</span>
+              <span>{timelineMax.toFixed(1)}</span>
+              <span>{(timelineMax * 0.75).toFixed(1)}</span>
+              <span>{(timelineMax * 0.5).toFixed(1)}</span>
+              <span>{(timelineMax * 0.25).toFixed(1)}</span>
               <span>0</span>
             </div>
             <span className={styles.historyAxisLabel}>Max Level (m)</span>
             <div className={styles.lineChart}>
               <svg viewBox="0 0 720 150" preserveAspectRatio="none" aria-hidden="true">
-                <path d="M0 99 C70 102 120 86 190 72 C270 54 320 42 395 38 C480 34 560 55 720 70" />
+                <polyline points={chartPoints} />
               </svg>
-              <span className={`${styles.lineDot} ${styles.dotWarning}`} />
-              <span className={`${styles.lineDot} ${styles.dotCritical}`} />
-              <span className={`${styles.lineDot} ${styles.dotAlert}`} />
+              {timeline.map((group, index) => (
+                <span
+                  className={`${styles.analyticsPoint} ${styles[`point${historySeverity(group.maxLevel)}`]}`}
+                  key={group.key}
+                  style={timelinePointStyle(index, timeline.length, group.maxLevel, timelineMax)}
+                  tabIndex={0}
+                >
+                  <span className={styles.pointTooltip}>
+                    <small>{group.label}</small>
+                    <b>{group.maxLevel.toFixed(2)}m</b>
+                    <em>{group.count} records</em>
+                  </span>
+                </span>
+              ))}
+              {!isLoading && timeline.length === 0 ? (
+                <div className={styles.timelineEmpty}>
+                  <EmptyState title="No flood readings available yet" description="Flood level readings will appear once sensors report history data." />
+                </div>
+              ) : null}
             </div>
+          </div>
+          <div className={styles.timelineLabels}>
+            {timelineLabels.map((group) => <span key={group.key}>{group.shortLabel}</span>)}
           </div>
 
           <div className={styles.historyTableWrap}>
@@ -106,21 +291,33 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
                 <tr>
                   <th>Date</th>
                   <th>Location</th>
-                  <th>Baragay</th>
-                  <th>Minimum</th>
+                  <th>Barangay</th>
+                  <th>Distance</th>
                   <th>Max Level</th>
+                  <th>Severity</th>
                 </tr>
               </thead>
               <tbody>
-                {historyRecords.map((record) => (
-                  <tr key={`${record.date}-${record.location}`}>
-                    <td>{record.date}</td>
-                    <td>{record.location}</td>
-                    <td>{record.barangay}</td>
-                    <td>{record.minimum}</td>
-                    <td>{record.maxLevel}</td>
+                {filteredHistory.map((record, index) => (
+                  <tr key={historyRecordKey(record, index)}>
+                    <td>{formatTimestamp(record.createdAt)}</td>
+                    <td>{record.sensorName}{record.street ? ` - ${record.street}` : ""}</td>
+                    <td>{record.barangayName}</td>
+                    <td>{record.distanceCm == null ? "-" : `${record.distanceCm.toFixed(2)}cm`}</td>
+                    <td>{formatWaterLevel(record.waterLevelM)}</td>
+                    <td><SeverityBadge level={historySeverity(record.waterLevelM, record.computedStatus)} /></td>
                   </tr>
                 ))}
+                {!isLoading && filteredHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan={6}>
+                      <EmptyState
+                        title={history.length === 0 ? "No flood readings available yet" : "No flood history records found"}
+                        description={history.length === 0 ? "Sensor history records will appear here once data is available." : "Try changing the date range, filters, or search terms."}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -131,6 +328,47 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
 }
 
 function FloodHeatmap({ onBack }: { onBack: () => void }) {
+  const [history, setHistory] = useState<FloodHistoryRow[]>([]);
+  const [latestSensors, setLatestSensors] = useState<Record<string, unknown>[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [isReportOpen, setIsReportOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const data = await getFloodMonitoringData();
+        if (!cancelled) {
+          setHistory(data.history);
+          setLatestSensors(data.latestSensors);
+          setError("");
+        }
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load flood monitoring data.");
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    load();
+    const interval = window.setInterval(load, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const latestReadings = useMemo(() => latestFloodReadings(latestSensors, history), [history, latestSensors]);
+  const distribution = useMemo(() => riskDistributionFor(latestReadings), [latestReadings]);
+  const highestReading = useMemo(() => latestReadings.reduce<FloodHistoryRow | null>((highest, reading) =>
+    reading.waterLevelM != null && (highest?.waterLevelM == null || reading.waterLevelM > highest.waterLevelM) ? reading : highest
+  , null), [latestReadings]);
+  const highestRiskBarangay = useMemo(() => highestRiskBarangayFor(latestReadings), [latestReadings]);
+  const maxWaterLevel = Math.max(8, ...latestReadings.map((reading) => reading.waterLevelM ?? 0));
+  const donutStyle = { background: distributionGradient(distribution) };
+
   return (
     <section className={styles.heatmapPage} aria-label="Flood heatmap">
       <div className={styles.heatmapTop}>
@@ -142,28 +380,30 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           <h2>Flood Heatmap</h2>
           <p>Monitor flood levels and manage alerts</p>
         </div>
-        <button className={styles.reviewButton} type="button">
+        <button className={styles.reviewButton} type="button" onClick={() => setIsReportOpen(true)}>
           <span aria-hidden="true">▣</span>
           Review Narrative Report
         </button>
       </div>
 
+      {error ? <ErrorState title="Unable to Load Flood Monitoring Data" message={error} /> : null}
+      {isLoading ? <LoadingState message="Loading flood monitoring data..." /> : null}
+      {!isLoading && !error && latestReadings.length === 0 ? (
+        <EmptyState title="No flood readings available yet" description="Current flood readings will appear once sensor data is available." />
+      ) : null}
+
       <article className={styles.heatmapCard}>
         <div className={styles.heatmapHeader}>
           <h3>Flood Risk Heatmap</h3>
           <div className={styles.legendRow}>
+            <span><i className={styles.legendNormal} />Normal</span>
             <span><i className={styles.legendWarning} />Warning</span>
-            <span><i className={styles.legendAlert} />Alert</span>
             <span><i className={styles.legendCritical} />Critical</span>
+            <span><i className={styles.legendNoReading} />No reading</span>
           </div>
         </div>
         <div className={styles.mapCanvas}>
-          <span className={styles.hotspotOne} />
-          <span className={styles.hotspotTwo} />
-          <span className={styles.pinOne}>⌖</span>
-          <span className={styles.pinTwo}>⌖</span>
-          <span className={styles.mapTooltip}>Area 1: Normal</span>
-          <span className={styles.mapScribble} aria-hidden="true" />
+          <FloodHeatmapMap readings={latestReadings} />
         </div>
       </article>
 
@@ -171,48 +411,49 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
         <h3>Water Level Trends (Current)</h3>
         <div className={styles.chartWrap}>
           <div className={styles.yAxis}>
-            <span>8</span>
-            <span>6</span>
-            <span>4</span>
-            <span>2</span>
+            <span>{maxWaterLevel.toFixed(1)}</span>
+            <span>{(maxWaterLevel * 0.75).toFixed(1)}</span>
+            <span>{(maxWaterLevel * 0.5).toFixed(1)}</span>
+            <span>{(maxWaterLevel * 0.25).toFixed(1)}</span>
             <span>0</span>
           </div>
           <span className={styles.axisLabel}>Water Level (m)</span>
-          <div className={styles.barChart}>
-            <span className={styles.hoverNote}>
-              Barangay Tanong- Street Sebastian
-              <b>2.1m</b>
-              <em>Warning</em>
-            </span>
-            {waterLevels.map((item) => (
-              <div className={styles.barSlot} key={item.id}>
+          <div className={styles.barChart} style={{ gridTemplateColumns: `repeat(${Math.max(latestReadings.length, 1)}, minmax(70px, 1fr))` }}>
+            {latestReadings.map((item) => (
+              <div className={styles.barSlot} key={item.sensorId} title={`${item.sensorName}: ${formatWaterLevel(item.waterLevelM)} (${item.computedStatus})`}>
                 <span
-                  className={`${styles.bar} ${styles[item.tone]}`}
-                  style={{ height: `${item.height}%` }}
+                  className={`${styles.bar} ${styles[barTone(item)]}`}
+                  style={{ height: `${item.waterLevelM == null ? 3 : Math.max(3, (item.waterLevelM / maxWaterLevel) * 100)}%` }}
                 />
-                <small>{item.label}</small>
+                <small>{item.sensorName}</small>
               </div>
             ))}
+            {!isLoading && latestReadings.length === 0 ? (
+              <div className={styles.chartEmpty}>
+                <EmptyState title="No flood readings available yet" description="Trend bars will appear after sensors report live readings." />
+              </div>
+            ) : null}
           </div>
         </div>
         <div className={styles.chartLegend}>
+          <span><i className={styles.legendNormal} />Normal</span>
           <span><i className={styles.legendWarning} />Warning (m)</span>
-          <span><i className={styles.legendAlert} />Alert (m)</span>
           <span><i className={styles.legendCritical} />Critical (m)</span>
+          <span><i className={styles.legendNoReading} />No reading</span>
         </div>
       </article>
 
       <article className={styles.distributionCard}>
         <h3>Flood Risk Distribution</h3>
         <div className={styles.distributionBody}>
-          <div className={styles.donut}>
+          <div className={styles.donut} style={donutStyle}>
             <div>
-              <strong>12</strong>
+              <strong>{latestReadings.length}</strong>
               <span>Areas</span>
             </div>
           </div>
           <div className={styles.distributionStats}>
-            {riskDistribution.map((item) => (
+            {distribution.map((item) => (
               <div key={item.label}>
                 <span><i className={styles[item.dot]} />{item.label}</span>
                 <strong className={styles[item.valueTone]}>{item.value}</strong>
@@ -222,6 +463,27 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       </article>
+      <Modal isOpen={isReportOpen} onClose={() => setIsReportOpen(false)} labelledBy="narrative-report-title" className={styles.reportDialog}>
+        <header className={styles.reportHeader}>
+          <div>
+            <h2 id="narrative-report-title">Flood Narrative Report</h2>
+            <p>Latest live sensor summary</p>
+          </div>
+          <button type="button" aria-label="Close narrative report" onClick={() => setIsReportOpen(false)}>x</button>
+        </header>
+        <div className={styles.reportBody}>
+          <p>{narrativeFor(latestReadings, highestReading, highestRiskBarangay)}</p>
+          <dl className={styles.reportGrid}>
+            <ReportDetail label="Sensor Nodes" value={latestReadings.length} />
+            <ReportDetail label="Critical" value={countRisk(latestReadings, "critical")} />
+            <ReportDetail label="Warning" value={countRisk(latestReadings, "warning")} />
+            <ReportDetail label="Normal" value={countRisk(latestReadings, "normal")} />
+            <ReportDetail label="Highest Water Level" value={highestReading ? `${highestReading.sensorName} - ${formatWaterLevel(highestReading.waterLevelM)}` : "No reading"} />
+            <ReportDetail label="Highest Risk Barangay" value={highestRiskBarangay || "No reading"} />
+            <ReportDetail label="Latest Reading" value={formatTimestamp(history[0]?.createdAt ?? null)} />
+          </dl>
+        </div>
+      </Modal>
     </section>
   );
 }
@@ -267,10 +529,6 @@ function AlertLevelManagement({ onBack }: { onBack: () => void }) {
                   <span aria-hidden="true">/</span>
                   Edit
                 </button>
-                <button className={styles.deleteButton} type="button">
-                  <span aria-hidden="true">□</span>
-                  Delete
-                </button>
               </div>
             </section>
           ))}
@@ -295,6 +553,263 @@ function AlertLevelManagement({ onBack }: { onBack: () => void }) {
         </div>
       </article>
     </section>
+  );
+}
+
+function latestFloodReadings(sensors: Record<string, unknown>[], history: FloodHistoryRow[]) {
+  const latestBySensor = new Map<string, FloodHistoryRow>();
+  history.forEach((reading) => {
+    if (!latestBySensor.has(reading.sensorId)) latestBySensor.set(reading.sensorId, reading);
+  });
+
+  return sensors.map((sensor) => {
+    const sensorId = String(sensor.sensorId ?? sensor.sensor_id ?? sensor._id ?? "");
+    const reading = latestBySensor.get(sensorId);
+    if (reading) return reading;
+
+    const coordinates = resolveSensorCoordinates(sensor);
+    return {
+      readingId: `no-reading-${sensorId}`,
+      sensorId,
+      sensorName: String(sensor.name ?? sensorId),
+      barangay: String(sensor.barangayName ?? sensor.barangay ?? "Unknown"),
+      barangayName: String(sensor.barangayName ?? sensor.barangay ?? "Unknown"),
+      street: String(sensor.street ?? ""),
+      lat: coordinates?.lat ?? null,
+      lng: coordinates?.lng ?? null,
+      waterLevelM: null,
+      waterLevel: null,
+      distanceCm: null,
+      rainfallMm: null,
+      batteryPct: null,
+      computedStatus: "no_reading",
+      status: "no_reading",
+      createdAt: null,
+    };
+  });
+}
+
+function riskDistributionFor(readings: FloodHistoryRow[]) {
+  const total = readings.length;
+  const categories = [
+    { label: "Normal", group: "normal", dot: "legendNormal", valueTone: "normalText" },
+    { label: "Warning", group: "warning", dot: "legendWarning", valueTone: "warningText" },
+    { label: "Critical", group: "critical", dot: "legendCritical", valueTone: "criticalText" },
+    { label: "No reading", group: "no_reading", dot: "legendNoReading", valueTone: "noReadingText" },
+  ];
+
+  return categories.map((item) => {
+    const value = readings.filter((reading) => riskGroup(reading) === item.group).length;
+    return { ...item, value: String(value), percent: total === 0 ? "0%" : `${Math.round((value / total) * 100)}%` };
+  });
+}
+
+function distributionGradient(distribution: ReturnType<typeof riskDistributionFor>) {
+  const colors = ["#17a34a", "#f7bd00", "#ff3347", "#94a3b8"];
+  let start = 0;
+  const segments = distribution.map((item, index) => {
+    const end = start + Number(item.percent.replace("%", ""));
+    const segment = `${colors[index]} ${start}% ${end}%`;
+    start = end;
+    return segment;
+  });
+
+  return start === 0 ? "#edf2f7" : `conic-gradient(${segments.join(", ")})`;
+}
+
+function barTone(reading: FloodHistoryRow) {
+  const group = riskGroup(reading);
+  if (group === "critical") return "criticalBar";
+  if (group === "warning") return "warningBar";
+  if (group === "normal") return "normalBar";
+  return "noReadingBar";
+}
+
+function riskGroup(reading: FloodHistoryRow) {
+  if (reading.waterLevelM == null) return "no_reading";
+
+  const status = reading.computedStatus.toLowerCase();
+  if (status.includes("critical")) return "critical";
+  if (status.includes("warning") || status.includes("alert")) return "warning";
+  return "normal";
+}
+
+function countRisk(readings: FloodHistoryRow[], group: string) {
+  return readings.filter((reading) => riskGroup(reading) === group).length;
+}
+
+function highestRiskBarangayFor(readings: FloodHistoryRow[]) {
+  const rank = { no_reading: 0, normal: 1, warning: 2, critical: 3 };
+  return readings.reduce<{ name: string; rank: number } | null>((highest, reading) => {
+    const readingRank = rank[riskGroup(reading) as keyof typeof rank];
+    return !highest || readingRank > highest.rank ? { name: reading.barangayName, rank: readingRank } : highest;
+  }, null)?.name ?? "";
+}
+
+function narrativeFor(readings: FloodHistoryRow[], highest: FloodHistoryRow | null, barangay: string) {
+  if (readings.length === 0) return "No flood readings available yet.";
+  if (!highest) return `Based on the latest sensor status, ${readings.length} sensor nodes are registered but no water-level readings are available yet.`;
+
+  const critical = countRisk(readings, "critical");
+  const warning = countRisk(readings, "warning");
+  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${critical} critical and ${warning} warning sensor readings. Immediate monitoring is recommended.`;
+}
+
+function formatWaterLevel(value: number | null) {
+  return value == null ? "No reading" : `${value.toFixed(2)}m`;
+}
+
+function formatTimestamp(value: string | null) {
+  if (!value) return "No reading";
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+type HistoryRange = "today" | "last7" | "last28" | "month" | "custom";
+type HistoryGroup = "hourly" | "daily" | "weekly" | "monthly" | "yearly";
+type HistorySeverity = "Normal" | "Warning" | "Alert" | "Critical";
+type HistoryChartGroup = {
+  key: string;
+  label: string;
+  shortLabel: string;
+  maxLevel: number;
+  count: number;
+};
+
+function isInHistoryRange(date: Date | null, range: HistoryRange, customStart: string, customEnd: string) {
+  if (!date || Number.isNaN(date.getTime())) return false;
+
+  const now = new Date();
+  const end = endOfDay(range === "custom" && customEnd ? new Date(`${customEnd}T00:00:00`) : now);
+  let start: Date;
+
+  if (range === "today") {
+    start = startOfDay(now);
+  } else if (range === "last7" || range === "last28") {
+    start = startOfDay(now);
+    start.setDate(start.getDate() - (range === "last7" ? 6 : 27));
+  } else if (range === "month") {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (customStart) {
+    start = startOfDay(new Date(`${customStart}T00:00:00`));
+  } else {
+    return true;
+  }
+
+  return date >= start && date <= end;
+}
+
+function groupHistory(readings: FloodHistoryRow[], groupBy: HistoryGroup) {
+  const groups = new Map<string, HistoryChartGroup>();
+
+  readings.forEach((reading) => {
+    if (!reading.createdAt) return;
+    const date = new Date(reading.createdAt);
+    if (Number.isNaN(date.getTime())) return;
+
+    const bucket = historyBucket(date, groupBy);
+    const current = groups.get(bucket.key);
+    const maxLevel = Math.max(current?.maxLevel ?? 0, reading.waterLevelM ?? 0);
+    groups.set(bucket.key, { ...bucket, maxLevel, count: (current?.count ?? 0) + 1 });
+  });
+
+  return Array.from(groups.values()).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function historyBucket(date: Date, groupBy: HistoryGroup) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  if (groupBy === "hourly") {
+    const hour = String(date.getHours()).padStart(2, "0");
+    return { key: `${year}-${month}-${day}T${hour}`, label: date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric" }), shortLabel: date.toLocaleTimeString([], { hour: "numeric" }) };
+  }
+  if (groupBy === "weekly") {
+    const start = startOfDay(date);
+    start.setDate(start.getDate() - start.getDay());
+    return { key: localDateKey(start), label: `Week of ${start.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}`, shortLabel: start.toLocaleDateString([], { month: "short", day: "numeric" }) };
+  }
+  if (groupBy === "monthly") {
+    return { key: `${year}-${month}`, label: date.toLocaleDateString([], { month: "long", year: "numeric" }), shortLabel: date.toLocaleDateString([], { month: "short", year: "2-digit" }) };
+  }
+  if (groupBy === "yearly") {
+    return { key: String(year), label: String(year), shortLabel: String(year) };
+  }
+
+  return { key: `${year}-${month}-${day}`, label: date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" }), shortLabel: date.toLocaleDateString([], { month: "short", day: "numeric" }) };
+}
+
+function historySeverity(level: number | null, computedStatus = ""): HistorySeverity {
+  const normalizedStatus = computedStatus.toLowerCase();
+  if (normalizedStatus.includes("critical")) return "Critical";
+  if (normalizedStatus.includes("alert")) return "Alert";
+  if (normalizedStatus.includes("warning")) return "Warning";
+  if (normalizedStatus.includes("normal")) return "Normal";
+
+  if (level == null || level < 0.5) return "Normal";
+  if (level < 1) return "Warning";
+  return "Critical";
+}
+
+function timelinePoints(groups: HistoryChartGroup[], max: number) {
+  if (groups.length === 0) return "";
+  if (groups.length === 1) return `0,${150 - (groups[0].maxLevel / max) * 150} 720,${150 - (groups[0].maxLevel / max) * 150}`;
+
+  return groups.map((group, index) => {
+    const x = (index / (groups.length - 1)) * 720;
+    const y = 150 - (group.maxLevel / max) * 150;
+    return `${x},${y}`;
+  }).join(" ");
+}
+
+function timelinePointStyle(index: number, total: number, level: number, max: number) {
+  const left = total <= 1 ? 50 : (index / (total - 1)) * 100;
+  return { left: `${left}%`, top: `${100 - (level / max) * 100}%` };
+}
+
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function endOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
+}
+
+function localDateKey(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function SeverityBadge({ level }: { level: HistorySeverity }) {
+  return <Badge tone={level === "Normal" ? "green" : level === "Warning" ? "yellow" : level === "Alert" ? "orange" : "red"}>{level}</Badge>;
+}
+
+function historyRecordKey(reading: FloodHistoryRow, index: number) {
+  if (reading.readingId) return reading.readingId;
+  if (reading.sensorId && reading.createdAt) return `${reading.sensorId}-${reading.createdAt}`;
+  return `${reading.sensorName}-${reading.createdAt ?? "no-date"}-${index}`;
+}
+
+function countHistorySeverity(readings: FloodHistoryRow[], severity: HistorySeverity) {
+  return readings.filter((reading) => historySeverity(reading.waterLevelM, reading.computedStatus) === severity).length;
+}
+
+function HistoryMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function ReportDetail({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }
 
@@ -326,82 +841,45 @@ const monitoringModules: Array<{
 
 const alertLevels = [
   {
-    name: "Alert",
-    range: "0m - 2m",
-    action: "Automated Action",
-    note: "Monitor closely, prepare evacuation",
+    name: "Flood Alert",
+    range: "0.25m - 0.50m",
+    action: "Suggested Automated Action",
+    note: "Knee-deep, alert residents / monitor closely",
     tone: "alert",
   },
   {
-    name: "Warning",
-    range: "2m - 4m",
-    action: "Automated Action",
-    note: "Prepare evacuation, mobilize resources",
+    name: "Flood Warning",
+    range: "0.75m - 1.00m",
+    action: "Suggested Automated Action",
+    note: "Waist-deep, prepare evacuation",
     tone: "warning",
   },
   {
-    name: "Critical",
-    range: "4m - 6m+",
-    action: "Automated Action",
-    note: "Evacuate immediately, deploy relief",
+    name: "Severe Flood Warning",
+    range: "1.20m - 1.50m",
+    action: "Suggested Automated Action",
+    note: "Chest-deep, forced evacuation",
     tone: "critical",
   },
-] as const;
-
-const waterLevels = [
-  { id: "tanong-sebastian-warning", label: "Barangay Tanong - Street sebastian", height: 26, tone: "warningBar" },
-  { id: "tanong-sebastian-critical", label: "Barangay Tanong - Street Sebastian", height: 26, tone: "criticalBar" },
-  { id: "tanong-sebastian-alert", label: "Barangay Tanong - Street Sebastian", height: 50, tone: "alertBar" },
-  { id: "tanong-sebastian-low", label: "Barangay Tanong - Street Sebastian", height: 19, tone: "warningBar" },
-] as const;
-
-const riskDistribution = [
-  { label: "Warning", value: "2", percent: "90%", dot: "legendWarning", valueTone: "warningText" },
-  { label: "Alert", value: "2", percent: "50%", dot: "legendAlert", valueTone: "alertText" },
-  { label: "Critical", value: "1", percent: "10%", dot: "legendCritical", valueTone: "criticalText" },
 ] as const;
 
 const recentActivity = [
   {
-    title: "Critical alert triggered at Barangay Tanong",
-    meta: "Water level: 4.8m · 2 minutes ago",
-    badge: "Critical",
+    title: "Severe Flood Warning triggered at Barangay Tanong",
+    meta: "Water level: 1.35m · 2 minutes ago",
+    badge: "Severe",
     tone: "critical",
   },
   {
-    title: "Warning level at Barangay Potrero",
-    meta: "Water level: 3.2m · 15 minutes ago",
-    badge: "Alert",
+    title: "Flood Warning level at Barangay Potrero",
+    meta: "Water level: 0.90m · 15 minutes ago",
+    badge: "Flood Warning",
     tone: "warning",
   },
   {
-    title: "Alert level at Barangay Catmon",
-    meta: "Water level: 1.5m · 1 hour ago",
-    badge: "Warning",
+    title: "Flood Alert level at Barangay Catmon",
+    meta: "Water level: 0.35m · 1 hour ago",
+    badge: "Flood Alert",
     tone: "alert",
-  },
-] as const;
-
-const historyRecords = [
-  {
-    date: "2026-04-10",
-    location: "Creek Bridge",
-    barangay: "Catmon",
-    minimum: "",
-    maxLevel: "4.2m",
-  },
-  {
-    date: "2026-03-28",
-    location: "Riverside Area",
-    barangay: "Tanong",
-    minimum: "",
-    maxLevel: "6.1m",
-  },
-  {
-    date: "2026-03-15",
-    location: "Main Street",
-    barangay: "Potrero",
-    minimum: "",
-    maxLevel: "3.0m",
   },
 ] as const;

@@ -1,5 +1,6 @@
 export interface Resident {
-  id: string;
+  resident_id?: string;
+  id?: string;
   name: string;
   age: number;
   sex: string;
