@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ApplicationFormValues, ModalMode, VerificationApplication, VerificationStatus } from "@/types/verification";
 import { fetchJson } from "@/services/apiClient";
+import { ActionResultModal, type ActionResultType } from "@/components/ui/ActionResultModal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Tabs } from "@/components/ui/Tabs/Tabs";
-import { Button } from "@/components/ui/Button/Button";
 import { ApplicationCard } from "@/components/verification/ApplicationCard/ApplicationCard";
 import { ApplicationFormModal } from "@/components/verification/ApplicationFormModal/ApplicationFormModal";
 import { ReviewModal } from "@/components/verification/ReviewModal/ReviewModal";
@@ -20,6 +23,13 @@ export function VerificationPanel() {
   const [selectedApplication, setSelectedApplication] = useState<VerificationApplication | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [resultModal, setResultModal] = useState({
+    open: false,
+    type: "success" as ActionResultType,
+    title: "",
+    description: "",
+    details: "",
+  });
 
   const fetchApplications = useCallback(async () => {
     setIsLoading(true);
@@ -87,13 +97,28 @@ export function VerificationPanel() {
         body: JSON.stringify(body),
       });
     } catch (reviewError) {
-      window.alert(reviewError instanceof Error ? reviewError.message : "Unable to review application");
+      setResultModal({
+        open: true,
+        type: "error",
+        title: action === "approved" ? "Failed to Approve Application" : "Failed to Reject Application",
+        description: reviewError instanceof Error ? reviewError.message : "Unable to review application",
+        details: "The application status was not changed. Please try the review action again.",
+      });
       return;
     }
 
     setIsReviewOpen(false);
     setSelectedApplication(null);
     await fetchApplications();
+    setResultModal({
+      open: true,
+      type: action === "approved" ? "success" : "warning",
+      title: action === "approved" ? "Application Approved Successfully" : "Application Rejected Successfully",
+      description: action === "approved"
+        ? "The resident application has been approved and moved to approved records."
+        : "The resident application has been rejected and moved to rejected records.",
+      details: "The applicant list and tab counts have been refreshed.",
+    });
   }
 
   const emptyFormValues: ApplicationFormValues = {
@@ -115,14 +140,6 @@ export function VerificationPanel() {
 
   return (
     <section className={styles.panel} aria-label="Resident account verification">
-      <div className={styles.headerActions}>
-        <Button onClick={() => {
-          setApplicationMode("add");
-          setIsApplicationOpen(true);
-        }}>
-          + Add Application
-        </Button>
-      </div>
       <Tabs
         ariaLabel="Verification status"
         activeKey={activeTab}
@@ -133,12 +150,12 @@ export function VerificationPanel() {
           { key: "rejected", label: "Rejected", count: counts.rejected, countTone: "red", icon: <SmartFloodIcon name="rejected" size={20} /> },
         ]}
       />
-      {error ? <p className={styles.errorMessage}>{error}</p> : null}
-      {isLoading ? <p className={styles.stateMessage}>Loading applications...</p> : null}
+      {error ? <ErrorState title="Unable to Load Applications" message={error} retryLabel="Retry" onRetry={fetchApplications} /> : null}
+      {isLoading ? <LoadingState message="Loading applications..." /> : null}
       <div className={styles.list}>
         {visibleApplications.map((application, index) => (
           <ApplicationCard
-            key={application.application_id ?? `${String(application.raw?.first_name ?? "")}-${String(application.raw?.last_name ?? "")}-${index}`}
+            key={application.application_id || `${String(application.raw?.first_name ?? "")}-${String(application.raw?.last_name ?? "")}-${index}`}
             application={application}
             onReview={() => {
               setSelectedApplication(application);
@@ -151,7 +168,10 @@ export function VerificationPanel() {
           />
         ))}
         {!isLoading && visibleApplications.length === 0 ? (
-          <p className={styles.stateMessage}>No applications found.</p>
+          <EmptyState
+            title={emptyTitleFor(activeTab)}
+            description={emptyDescriptionFor(activeTab)}
+          />
         ) : null}
       </div>
       <ReviewModal
@@ -167,8 +187,30 @@ export function VerificationPanel() {
         values={formValues}
         onClose={() => setIsApplicationOpen(false)}
       />
+      <ActionResultModal
+        open={resultModal.open}
+        type={resultModal.type}
+        title={resultModal.title}
+        description={resultModal.description}
+        details={resultModal.details}
+        primaryLabel="OK"
+        onPrimary={() => setResultModal((current) => ({ ...current, open: false }))}
+        onClose={() => setResultModal((current) => ({ ...current, open: false }))}
+      />
     </section>
   );
+}
+
+function emptyTitleFor(status: VerificationStatus) {
+  if (status === "approved") return "No approved applications";
+  if (status === "rejected") return "No rejected applications";
+  return "No pending applications";
+}
+
+function emptyDescriptionFor(status: VerificationStatus) {
+  if (status === "approved") return "Approved resident applications will appear here.";
+  if (status === "rejected") return "Rejected resident applications will appear here.";
+  return "New resident account applications awaiting review will appear here.";
 }
 
 function mapApplication(row: Record<string, unknown>): VerificationApplication {

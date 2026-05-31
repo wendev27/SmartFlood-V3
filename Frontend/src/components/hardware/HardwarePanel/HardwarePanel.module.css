@@ -1,13 +1,17 @@
 .landingPanel {
   min-height: calc(100vh - 220px);
-  padding-top: clamp(24px, 4vh, 54px);
+  padding-top: clamp(26px, 4vh, 58px);
+  width: 100%;
 }
 
 .moduleCards {
   display: grid;
-  gap: 28px;
+  gap: clamp(18px, 1.6vw, 28px);
   grid-template-columns: 1fr;
-  max-width: 620px;
+  justify-content: center;
+  margin: 0 auto;
+  max-width: 100%;
+  width: 100%;
 }
 
 .moduleCard {
@@ -15,8 +19,8 @@
   border-radius: 9px;
   box-shadow: 0 13px 21px rgba(15, 23, 42, 0.13);
   color: #0a3f78;
-  min-height: 190px;
-  padding: 28px 22px 24px;
+  min-height: 208px;
+  padding: 32px 22px 26px;
 }
 
 .moduleIcon {
@@ -312,7 +316,7 @@
 
 @media (min-width: 680px) {
   .moduleCards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
   }
 
   .topRow {
@@ -330,8 +334,41 @@
 }
 
 @media (min-width: 900px) {
+  .subPage {
+    height: calc(100dvh - 190px);
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-color: #9bc9ff transparent;
+    scrollbar-width: thin;
+  }
+
+  .subPage::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .subPage::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .subPage::-webkit-scrollbar-thumb {
+    background: #9bc9ff;
+    border-radius: 999px;
+  }
+
   .landingPanel {
-    padding-top: clamp(28px, 5vh, 64px);
+    align-content: start;
+    display: grid;
+    min-height: calc(100vh - 235px);
+    padding-top: clamp(38px, 6vh, 72px);
+  }
+
+  .moduleCards {
+    max-width: min(752px, 100%);
+  }
+
+  .moduleCard {
+    min-height: clamp(218px, 24vh, 250px);
+    padding: clamp(30px, 3vh, 38px) 22px 28px;
   }
 
   .panel {

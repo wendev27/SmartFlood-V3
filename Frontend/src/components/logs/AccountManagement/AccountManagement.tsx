@@ -1,102 +1,582 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { ActionResultModal, type ActionResultType } from "@/components/ui/ActionResultModal";
 import { Badge } from "@/components/ui/Badge/Badge";
+import { Button } from "@/components/ui/Button/Button";
 import { DataTable } from "@/components/ui/DataTable/DataTable";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
+import { Modal } from "@/components/ui/Modal/Modal";
+import { fetchJson } from "@/services/apiClient";
 import { getAccountUsers } from "@/services/logsService";
 import styles from "./AccountManagement.module.css";
 
+type AccountStatus = "active" | "inactive" | "blocked";
+type AccountFormMode = "add" | "edit";
+
 type AccountUserRow = {
-  user_id: string;
-  name: string;
+  id: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email: string;
+  mobile_number: string;
+  address: string;
+  sex: string;
+  role_id: number | null;
+  role_label: string;
   department: string;
-  role: string;
-  status: string;
-  lastLogin: string;
+  barangay_id: number | null;
+  barangay_name: string;
+  status: AccountStatus;
+  failed_login_attempts: number;
+  locked_until: string;
+  last_login_at: string;
+  created_at: string;
+  updated_at: string;
 };
+
+type AccountFormState = {
+  first_name: string;
+  last_name: string;
+  email: string;
+  mobile_number: string;
+  password: string;
+  confirm_password: string;
+  address: string;
+  sex: string;
+  role_id: string;
+  barangay_id: string;
+  status: AccountStatus;
+};
+
+const emptyForm: AccountFormState = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  mobile_number: "",
+  password: "",
+  confirm_password: "",
+  address: "",
+  sex: "",
+  role_id: "",
+  barangay_id: "",
+  status: "active",
+};
+
+const roleOptions = [
+  { id: "1", label: "Super Admin" },
+  { id: "2", label: "NDRRMO Officer" },
+  { id: "3", label: "City Welfare" },
+  { id: "4", label: "Barangay Official" },
+];
+
+const barangayOptions = [
+  { id: "1", label: "Barangay Tanong" },
+  { id: "2", label: "Barangay Catmon" },
+  { id: "3", label: "Barangay Potrero" },
+];
+
+const departmentOptions = ["NDRRMO", "City Welfare", "Barangay Tanong", "Barangay Catmon", "Barangay Potrero"];
 
 export function AccountManagement() {
   const [users, setUsers] = useState<AccountUserRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [departmentFilter, setDepartmentFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [formMode, setFormMode] = useState<AccountFormMode>("add");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [form, setForm] = useState<AccountFormState>(emptyForm);
+  const [formError, setFormError] = useState("");
+  const [selectedUser, setSelectedUser] = useState<AccountUserRow | null>(null);
+  const [previewUser, setPreviewUser] = useState<AccountUserRow | null>(null);
+  const [passwordUser, setPasswordUser] = useState<AccountUserRow | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resultModal, setResultModal] = useState({
+    open: false,
+    type: "success" as ActionResultType,
+    title: "",
+    description: "",
+    details: "",
+  });
+
+  const refreshUsers = useCallback(async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const data = await getAccountUsers();
+      setUsers(data.map(mapAccountUser));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to load account users.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    refreshUsers();
+  }, [refreshUsers]);
 
-    async function load() {
-      setIsLoading(true);
-      setError("");
-      try {
-        const data = await getAccountUsers();
-        if (!cancelled) setUsers(data.map(mapAccountUser));
-      } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load account users.");
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
+  const displayedUsers = useMemo(() => users.filter((user) => {
+    const normalizedSearch = search.trim().toLowerCase();
+    const matchesSearch = !normalizedSearch || [
+      user.full_name,
+      user.email,
+      user.mobile_number,
+      user.role_label,
+      user.department,
+      user.barangay_name,
+      user.status,
+      statusLabel(user.status),
+    ].some((value) => value.toLowerCase().includes(normalizedSearch));
+
+    return matchesSearch
+      && (!departmentFilter || user.department === departmentFilter || user.barangay_name === departmentFilter)
+      && (!roleFilter || String(user.role_id ?? "") === roleFilter)
+      && (!statusFilter || user.status === statusFilter);
+  }), [departmentFilter, roleFilter, search, statusFilter, users]);
+
+  function openAddForm() {
+    setFormMode("add");
+    setSelectedUser(null);
+    setForm(emptyForm);
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function openEditForm(user: AccountUserRow) {
+    setFormMode("edit");
+    setSelectedUser(user);
+    setPreviewUser(null);
+    setForm({
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      mobile_number: user.mobile_number,
+      password: "",
+      confirm_password: "",
+      address: user.address,
+      sex: user.sex,
+      role_id: user.role_id ? String(user.role_id) : "",
+      barangay_id: user.barangay_id ? String(user.barangay_id) : "",
+      status: user.status,
+    });
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function updateForm<K extends keyof AccountFormState>(field: K, value: AccountFormState[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submitAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError("");
+
+    const validationError = validateAccountForm(form, formMode);
+    if (validationError) {
+      setFormError(validationError);
+      return;
     }
 
-    load();
-    return () => {
-      cancelled = true;
+    const payload = {
+      first_name: form.first_name,
+      last_name: form.last_name,
+      email: form.email,
+      mobile_number: form.mobile_number,
+      address: form.address,
+      sex: form.sex,
+      role_id: Number(form.role_id),
+      barangay_id: form.barangay_id ? Number(form.barangay_id) : null,
+      status: form.status,
+      ...(formMode === "add" ? { password: form.password } : {}),
     };
-  }, []);
+
+    setIsSubmitting(true);
+    try {
+      if (formMode === "edit" && selectedUser) {
+        await fetchJson(`/api/app-users/${selectedUser.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetchJson("/api/app-users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setIsFormOpen(false);
+      await refreshUsers();
+      setResultModal({
+        open: true,
+        type: "success",
+        title: formMode === "edit" ? "Account Updated Successfully" : "Account Created Successfully",
+        description: formMode === "edit" ? "The dashboard account profile and RBAC settings were updated." : "The dashboard account is ready for login with its assigned role.",
+        details: "Password hashes are stored server-side and never returned to the client.",
+      });
+    } catch (saveError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: formMode === "edit" ? "Failed to Update Account" : "Failed to Create Account",
+        description: saveError instanceof Error ? saveError.message : "Unable to save account.",
+        details: "Check required fields, unique email, and role/barangay settings.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!passwordUser || !newPassword.trim()) return;
+
+    setIsSubmitting(true);
+    try {
+      await fetchJson(`/api/app-users/${passwordUser.id}/password`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ new_password: newPassword }),
+      });
+      setPasswordUser(null);
+      setNewPassword("");
+      await refreshUsers();
+      setResultModal({
+        open: true,
+        type: "success",
+        title: "Password Changed Successfully",
+        description: "The account password has been updated and failed login attempts were reset.",
+        details: "The new password was hashed before storage.",
+      });
+    } catch (passwordError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Failed to Change Password",
+        description: passwordError instanceof Error ? passwordError.message : "Unable to change password.",
+        details: "Please enter a new password and try again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function updateStatus(user: AccountUserRow, status: AccountStatus) {
+    setIsSubmitting(true);
+    try {
+      await fetchJson(`/api/app-users/${user.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      await refreshUsers();
+      setPreviewUser((current) => current?.id === user.id ? { ...current, status } : current);
+      setResultModal({
+        open: true,
+        type: status === "active" ? "success" : "warning",
+        title: status === "active" ? "Account Enabled" : "Account Status Updated",
+        description: `${user.full_name || user.email} is now ${statusLabel(status).toLowerCase()}.`,
+        details: "The account status was updated in app_users.",
+      });
+    } catch (statusError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Failed to Update Status",
+        description: statusError instanceof Error ? statusError.message : "Unable to update account status.",
+        details: "Please try the status action again.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <article className={styles.card}>
       <div className={styles.toolbar}>
-        <label className={styles.search}><span /><input type="search" placeholder="Search by name, email..." /></label>
-        <select aria-label="Department"><option>All Departments</option></select>
-        <select aria-label="Role"><option>All Roles</option></select>
-        <select aria-label="Status"><option>All Status</option></select>
-        <button type="button" className={styles.exportButton}>Export</button>
-        <button type="button" className={styles.addButton}>+ Add New</button>
+        <label className={styles.search}>
+          <span />
+          <input
+            type="search"
+            placeholder="Search by name, email, mobile, role, or status..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <select aria-label="Department" value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)}>
+          <option value="">All Departments</option>
+          {departmentOptions.map((department) => <option key={department} value={department}>{department}</option>)}
+        </select>
+        <select aria-label="Role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+          <option value="">All Roles</option>
+          {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.label}</option>)}
+        </select>
+        <select aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="blocked">Blocked</option>
+        </select>
+        <button type="button" className={styles.exportButton} onClick={() => {
+          setSearch("");
+          setDepartmentFilter("");
+          setRoleFilter("");
+          setStatusFilter("");
+        }}>Reset</button>
+        <button type="button" className={styles.addButton} onClick={openAddForm}>+ Add New</button>
       </div>
-      {error ? <p className={styles.errorMessage}>{error}</p> : null}
-      <DataTable headers={["Name", "Department", "Role", "Status", "Last Login", "Actions"]} minWidth={880}>
-        {users.map((user, index) => (
-          <tr key={user.user_id ?? `${user.name}-${index}`}>
-            <td>{user.name}</td>
+      {error ? <ErrorState title="Unable to Load Accounts" message={error} retryLabel="Retry" onRetry={refreshUsers} /> : null}
+      <DataTable headers={["Name / Email", "Role", "Department / Barangay", "Status", "Actions"]} minWidth={880}>
+        {displayedUsers.map((user, index) => (
+          <tr key={user.id || `${user.email}-${index}`}>
+            <td>
+              <strong className={styles.userName}>{user.full_name || "Unnamed account"}</strong>
+              <a className={styles.emailLink} href={`mailto:${user.email}`}>{user.email}</a>
+            </td>
+            <td>{user.role_label}</td>
             <td><Badge tone={departmentTone(user.department)}>{user.department}</Badge></td>
-            <td>{user.role}</td>
-            <td><Badge tone={user.status === "Active" ? "green" : "gray"}>{user.status}</Badge></td>
-            <td>{user.lastLogin}</td>
-            <td><span className={styles.edit} /><span className={styles.delete} /><span className={styles.view} /></td>
+            <td><Badge tone={statusTone(user.status)}>{statusLabel(user.status)}</Badge></td>
+            <td>
+              <div className={styles.rowActions}>
+                <button className={styles.previewButton} type="button" onClick={() => setPreviewUser(user)}><span className={styles.view} />Preview</button>
+                <button className={styles.previewButton} type="button" onClick={() => openEditForm(user)}>Edit</button>
+              </div>
+            </td>
           </tr>
         ))}
         {isLoading ? (
           <tr>
-            <td colSpan={6}>Loading account users...</td>
+            <td colSpan={5}><LoadingState message="Loading account users..." /></td>
           </tr>
         ) : null}
-        {!isLoading && users.length === 0 ? (
+        {!isLoading && displayedUsers.length === 0 ? (
           <tr>
-            <td colSpan={6}>No account users found.</td>
+            <td colSpan={5}>
+              <EmptyState
+                title={users.length === 0 ? "No accounts found" : "No accounts match your filters"}
+                description={users.length === 0 ? "System accounts will appear here once they are created." : "Try another name, email, role, department, or status filter."}
+                actionLabel={users.length === 0 ? "Add Account" : undefined}
+                onAction={users.length === 0 ? openAddForm : undefined}
+              />
+            </td>
           </tr>
         ) : null}
       </DataTable>
+
+      <Modal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} labelledBy="account-form-title" className={styles.accountDialog}>
+        <header className={styles.modalHeader}>
+          <div>
+            <h3 id="account-form-title">{formMode === "edit" ? "Edit Account" : "Add New Account"}</h3>
+            <p>{formMode === "edit" ? "Update profile and RBAC settings" : "Create a login-ready dashboard account"}</p>
+          </div>
+          <button type="button" onClick={() => setIsFormOpen(false)} aria-label="Close account form">x</button>
+        </header>
+        <form className={styles.accountForm} onSubmit={submitAccount}>
+          {formError ? <p className={styles.formError}>{formError}</p> : null}
+          <div className={styles.formGrid}>
+            <label>First Name<input value={form.first_name} onChange={(event) => updateForm("first_name", event.target.value)} /></label>
+            <label>Last Name<input value={form.last_name} onChange={(event) => updateForm("last_name", event.target.value)} /></label>
+            <label>Email<input type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} /></label>
+            <label>Mobile Number<input value={form.mobile_number} onChange={(event) => updateForm("mobile_number", event.target.value)} /></label>
+            {formMode === "add" ? <label>Password<input type="password" value={form.password} onChange={(event) => updateForm("password", event.target.value)} /></label> : null}
+            {formMode === "add" ? <label>Confirm Password<input type="password" value={form.confirm_password} onChange={(event) => updateForm("confirm_password", event.target.value)} /></label> : null}
+            <label>Role<select value={form.role_id} onChange={(event) => updateForm("role_id", event.target.value)}>
+              <option value="">Select role</option>
+              {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.label}</option>)}
+            </select></label>
+            <label>Department / Barangay<select value={form.barangay_id} onChange={(event) => updateForm("barangay_id", event.target.value)}>
+              <option value="">No barangay</option>
+              {barangayOptions.map((barangay) => <option key={barangay.id} value={barangay.id}>{barangay.label}</option>)}
+            </select></label>
+            <label>Sex<select value={form.sex} onChange={(event) => updateForm("sex", event.target.value)}>
+              <option value="">Not specified</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select></label>
+            <label>Status<select value={form.status} onChange={(event) => updateForm("status", event.target.value as AccountStatus)}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="blocked">Blocked</option>
+            </select></label>
+            <label className={styles.wideField}>Address<input value={form.address} onChange={(event) => updateForm("address", event.target.value)} /></label>
+          </div>
+          <footer className={styles.formActions}>
+            <Button tone="muted" onClick={() => setIsFormOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Saving..." : formMode === "edit" ? "Save Changes" : "Create Account"}</Button>
+          </footer>
+        </form>
+      </Modal>
+
+      <Modal isOpen={Boolean(previewUser)} onClose={() => setPreviewUser(null)} labelledBy="account-preview-title" className={styles.accountDialog}>
+        {previewUser ? (
+          <>
+            <header className={styles.modalHeader}>
+              <div>
+                <h3 id="account-preview-title">{previewUser.full_name || previewUser.email}</h3>
+                <p>Account details and RBAC assignment</p>
+              </div>
+              <button type="button" onClick={() => setPreviewUser(null)} aria-label="Close account preview">x</button>
+            </header>
+            <dl className={styles.detailGrid}>
+              <Detail label="Full Name" value={previewUser.full_name || "Unnamed account"} />
+              <Detail label="Email" value={previewUser.email} />
+              <Detail label="Mobile" value={previewUser.mobile_number} />
+              <Detail label="Role" value={previewUser.role_label} />
+              <Detail label="Department / Barangay" value={previewUser.department} />
+              <Detail label="Address" value={previewUser.address || "-"} />
+              <Detail label="Sex" value={previewUser.sex || "-"} />
+              <Detail label="Status" value={statusLabel(previewUser.status)} />
+              <Detail label="Created At" value={formatDateTime(previewUser.created_at, "Not available")} />
+              <Detail label="Updated At" value={formatDateTime(previewUser.updated_at, "Not available")} />
+              <Detail label="Last Login" value={formatDateTime(previewUser.last_login_at)} />
+              <Detail label="Failed Login Attempts" value={String(previewUser.failed_login_attempts)} />
+              <Detail label="Locked Until" value={formatDateTime(previewUser.locked_until, "Not locked")} />
+            </dl>
+            <div className={styles.previewActions}>
+              <Button size="sm" onClick={() => setPasswordUser(previewUser)}>Change Password</Button>
+              {previewUser.status === "active" ? (
+                <Button size="sm" tone="muted" onClick={() => updateStatus(previewUser, "inactive")} disabled={isSubmitting}>Disable Account</Button>
+              ) : null}
+              {previewUser.status === "inactive" ? (
+                <Button size="sm" tone="success" onClick={() => updateStatus(previewUser, "active")} disabled={isSubmitting}>Enable Account</Button>
+              ) : null}
+              {previewUser.status !== "blocked" ? (
+                <Button size="sm" tone="danger" onClick={() => updateStatus(previewUser, "blocked")} disabled={isSubmitting}>Block Account</Button>
+              ) : (
+                <Button size="sm" tone="success" onClick={() => updateStatus(previewUser, "active")} disabled={isSubmitting}>Unblock Account</Button>
+              )}
+              <Button size="sm" tone="purple" onClick={() => openEditForm(previewUser)}>Edit Account</Button>
+            </div>
+          </>
+        ) : null}
+      </Modal>
+
+      <Modal isOpen={Boolean(passwordUser)} onClose={() => setPasswordUser(null)} labelledBy="password-title" className={styles.passwordDialog}>
+        <header className={styles.modalHeader}>
+          <div>
+            <h3 id="password-title">Change Password</h3>
+            <p>{passwordUser?.full_name || passwordUser?.email}</p>
+          </div>
+          <button type="button" onClick={() => setPasswordUser(null)} aria-label="Close password form">x</button>
+        </header>
+        <form className={styles.accountForm} onSubmit={changePassword}>
+          <label>New Password<input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+          <footer className={styles.formActions}>
+            <Button tone="muted" onClick={() => setPasswordUser(null)}>Cancel</Button>
+            <Button type="submit" disabled={isSubmitting || !newPassword.trim()}>{isSubmitting ? "Saving..." : "Change Password"}</Button>
+          </footer>
+        </form>
+      </Modal>
+
+      <ActionResultModal
+        open={resultModal.open}
+        type={resultModal.type}
+        title={resultModal.title}
+        description={resultModal.description}
+        details={resultModal.details}
+        primaryLabel="OK"
+        onPrimary={() => setResultModal((current) => ({ ...current, open: false }))}
+        onClose={() => setResultModal((current) => ({ ...current, open: false }))}
+      />
     </article>
   );
 }
 
-function departmentTone(department: string) {
-  if (department === "Barangay") return "green";
-  if (department === "CSWDD") return "orange";
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function validateAccountForm(form: AccountFormState, mode: AccountFormMode) {
+  if (!form.first_name.trim()) return "First name is required.";
+  if (!form.last_name.trim()) return "Last name is required.";
+  if (!form.email.trim()) return "Email is required.";
+  if (!form.mobile_number.trim()) return "Mobile number is required.";
+  if (mode === "add" && !form.password.trim()) return "Password is required.";
+  if (mode === "add" && form.password !== form.confirm_password) return "Password and confirm password must match.";
+  if (!form.role_id) return "Role is required.";
+  if (Number(form.role_id) === 4 && !form.barangay_id) return "Barangay is required for Barangay Official accounts.";
+  return "";
+}
+
+function departmentTone(department: string): "green" | "orange" | "purple" {
+  if (department.startsWith("Barangay")) return "green";
+  if (department === "City Welfare") return "orange";
   return "purple";
+}
+
+function statusTone(status: AccountStatus): "green" | "red" | "gray" {
+  if (status === "active") return "green";
+  if (status === "blocked") return "red";
+  return "gray";
+}
+
+function statusLabel(status: AccountStatus) {
+  if (status === "active") return "Enabled";
+  if (status === "blocked") return "Blocked";
+  return "Disabled";
 }
 
 function mapAccountUser(row: Record<string, unknown>): AccountUserRow {
   const firstName = String(row.first_name ?? "");
   const lastName = String(row.last_name ?? "");
-  const fallbackName = [firstName, lastName].filter(Boolean).join(" ");
-  const name = (row.full_name ?? row.name ?? fallbackName) || row.email || "Unnamed user";
+  const status = String(row.status ?? "inactive").toLowerCase() as AccountStatus;
 
   return {
-    user_id: String(row.user_id ?? row.id ?? ""),
-    name: String(name),
-    department: String(row.department ?? "CDRRMO"),
-    role: String(row.role ?? "User"),
-    status: String(row.status ?? "Inactive"),
-    lastLogin: String(row.last_login ?? row.lastLogin ?? "Never"),
+    id: String(row.id ?? row.user_id ?? ""),
+    first_name: firstName,
+    last_name: lastName,
+    full_name: [firstName, lastName].filter(Boolean).join(" "),
+    email: String(row.email ?? ""),
+    mobile_number: String(row.mobile_number ?? ""),
+    address: String(row.address ?? ""),
+    sex: String(row.sex ?? ""),
+    role_id: row.role_id == null ? null : Number(row.role_id),
+    role_label: formatRole(row.role_label ?? row.role_name ?? row.role_id),
+    department: formatDepartment(row.department ?? row.barangay_name ?? row.barangay ?? row.role_id),
+    barangay_id: row.barangay_id == null ? null : Number(row.barangay_id),
+    barangay_name: String(row.barangay_name ?? row.barangay ?? ""),
+    status: status === "active" || status === "blocked" ? status : "inactive",
+    failed_login_attempts: Number(row.failed_login_attempts ?? 0),
+    locked_until: String(row.locked_until ?? ""),
+    last_login_at: String(row.last_login_at ?? ""),
+    created_at: String(row.created_at ?? ""),
+    updated_at: String(row.updated_at ?? ""),
   };
+}
+
+function formatDepartment(value: unknown) {
+  const department = String(value || "NDRRMO");
+  if (/city|welfare|cswdd/i.test(department)) return "City Welfare";
+  if (/barangay/i.test(department)) return department;
+  if (department === "4") return "Barangay";
+  return "NDRRMO";
+}
+
+function formatRole(value: unknown) {
+  const role = String(value || "");
+  if (/super/i.test(role) || role === "1" || role === "SUPER_ADMIN") return "Super Admin";
+  if (/ndrrmo/i.test(role) || role === "2" || role === "NDRRMO_OFFICER") return "NDRRMO Officer";
+  if (/welfare|cswdd/i.test(role) || role === "3" || role === "CITY_WELFARE") return "City Welfare";
+  if (/barangay/i.test(role) || role === "4" || role === "BARANGAY_OFFICIAL") return "Barangay Official";
+  return role || "Unassigned";
+}
+
+function formatDateTime(value: string, emptyLabel = "No login yet") {
+  if (!value) return emptyLabel;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 }

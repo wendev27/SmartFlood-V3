@@ -11,6 +11,12 @@
   padding: clamp(18px, 2vw, 26px);
 }
 
+.historyPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .panelHeader,
 .historyHeader {
   margin-bottom: 18px;
@@ -41,6 +47,78 @@
   color: #64748b;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.historyFilters {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.historyFilters label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.historyFilters span {
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.historyFilters input,
+.historyFilters select {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 12px;
+  height: 40px;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.historyFilters button {
+  align-self: end;
+  background: #e8eef6;
+  border: 0;
+  border-radius: 8px;
+  color: #334155;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  height: 40px;
+  padding: 0 18px;
+}
+
+.historyFilters input:focus,
+.historyFilters select:focus,
+.historyFilters button:focus-visible {
+  outline: 2px solid rgba(15, 97, 255, 0.22);
+  outline-offset: 2px;
+}
+
+.historyTableWrap {
+  max-height: clamp(430px, 48vh, 520px);
+  min-height: 0;
+  overflow: auto;
+  scrollbar-color: #9bc9ff transparent;
+  scrollbar-width: thin;
+}
+
+.historyTableWrap::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.historyTableWrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.historyTableWrap::-webkit-scrollbar-thumb {
+  background: #9bc9ff;
+  border-radius: 999px;
 }
 
 .actions {
@@ -170,9 +248,9 @@
 }
 
 .inventoryDialog {
+  --modal-width: 1050px;
   border-radius: 8px;
-  max-width: 1050px;
-  width: min(calc(100vw - 48px), 1050px);
+  width: min(var(--modal-width), calc(100dvw - 32px));
 }
 
 .modalHeader {
@@ -183,6 +261,10 @@
   justify-content: space-between;
   min-height: 100px;
   padding: 28px 30px;
+}
+
+.modalHeader > div {
+  min-width: 0;
 }
 
 .modalHeader h3,
@@ -256,6 +338,10 @@
   padding: 18px;
 }
 
+.inventoryItem > div {
+  min-width: 0;
+}
+
 .inventoryItem strong,
 .inventoryItem span {
   display: block;
@@ -277,6 +363,7 @@
   display: flex;
   gap: 14px;
   justify-content: flex-end;
+  min-width: 0;
 }
 
 .quantityControl label {
@@ -286,6 +373,7 @@
   display: flex;
   height: 48px;
   overflow: hidden;
+  max-width: 100%;
   width: 156px;
 }
 
@@ -372,9 +460,9 @@
 }
 
 .reportDialog {
+  --modal-width: 930px;
   border-radius: 4px;
-  max-width: 930px;
-  width: min(calc(100vw - 48px), 930px);
+  width: min(var(--modal-width), calc(100dvw - 32px));
 }
 
 .reportHeader {
@@ -436,6 +524,10 @@
   .modalFooter {
     grid-template-columns: 1fr 1fr;
   }
+
+  .historyFilters {
+    grid-template-columns: minmax(120px, 0.8fr) minmax(150px, 1fr) minmax(180px, 1.15fr) minmax(220px, 1.4fr) auto;
+  }
 }
 
 @media (max-width: 520px) {
@@ -462,7 +554,7 @@
 
   .inventoryDialog,
   .reportDialog {
-    width: min(calc(100vw - 28px), 1050px);
+    width: min(var(--modal-width), calc(100dvw - 28px));
   }
 
   .reportBody {

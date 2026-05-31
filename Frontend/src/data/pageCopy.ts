@@ -5,13 +5,9 @@ export const pageCopy: Record<PageKey, PageCopy> = {
     title: "Welcome back!",
     subtitle: "Manage your barangay operations efficiently and effectively",
   },
-  hardware: {
-    title: "Sensor Configuration Management",
-    subtitle: "View and manage sensor devices. Arduino Control Panel",
-  },
   logs: {
     title: "Account Management",
-    subtitle: "Manage user accounts and view system audit logs",
+    subtitle: "Manage web dashboard accounts and role-based access.",
   },
   systemLogs: {
     title: "System Logs",
@@ -27,7 +23,7 @@ export const pageCopy: Record<PageKey, PageCopy> = {
   },
   sensors: {
     title: "Sensor History",
-    subtitle: "Configure and monitor sensor devices",
+    subtitle: "View and monitor sensor device readings",
   },
   residents: {
     title: "Resident Information",

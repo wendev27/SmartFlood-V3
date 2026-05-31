@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { normalizeBarangay } from "@/lib/sensorMapping";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 type FamilyTotals = {
@@ -15,6 +16,12 @@ type FamilyTotals = {
   total_family_members: number;
   affected_families: number;
 };
+
+const knownBarangays = [
+  { barangay_id: "1", barangay_name: "Barangay Tanong" },
+  { barangay_id: "2", barangay_name: "Barangay Catmon" },
+  { barangay_id: "3", barangay_name: "Barangay Potrero" },
+];
 
 function toNumber(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -53,25 +60,38 @@ export async function POST() {
     ]).toArray();
 
     const readingMap = new Map(readings.map((reading) => [String(reading._id), reading.doc]));
-    const sensorGroups = new Map<string, { barangay_id: string | null; barangay_name: string; max_water_level_m: number; sensor_count: number }>();
+    const sensorGroups = new Map<string, { barangay_id: string | null; barangay_name: string; max_water_level_m: number | null; sensor_count: number; reading_count: number }>();
 
     for (const sensor of sensors) {
       const reading = readingMap.get(String(sensor._id));
-      const barangayName = String(sensor.barangayName ?? sensor.barangay ?? "Unknown");
-      const key = String(sensor.barangay ?? barangayName);
+      const mappedBarangay = normalizeBarangay(sensor.barangayName ?? sensor.barangay);
+      if (!mappedBarangay.barangay_id) {
+        if (process.env.NODE_ENV === "development") {
+          console.warn("Skipping unmapped sensor barangay", sensor.barangayName ?? sensor.barangay ?? sensor._id);
+        }
+        continue;
+      }
+      const key = String(mappedBarangay.barangay_id);
       const current = sensorGroups.get(key) ?? {
-        barangay_id: sensor.barangay ?? null,
-        barangay_name: barangayName,
-        max_water_level_m: 0,
+        barangay_id: String(mappedBarangay.barangay_id),
+        barangay_name: mappedBarangay.barangay_name,
+        max_water_level_m: null,
         sensor_count: 0,
+        reading_count: 0,
       };
 
-      current.max_water_level_m = Math.max(current.max_water_level_m, toNumber(reading?.waterLevelM));
+      if (reading) {
+        current.max_water_level_m = Math.max(current.max_water_level_m ?? 0, toNumber(reading.waterLevelM ?? reading.waterLevel));
+        current.reading_count += 1;
+      }
+
       current.sensor_count += 1;
       sensorGroups.set(key, current);
     }
 
-    const { data: families, error: familiesError } = await supabaseServer.from("families").select("*");
+    const { data: families, error: familiesError } = await supabaseServer
+      .from("families")
+      .select("barangay_id,barangay_name,pwd_count,elderly_count,four_ps_count,lactating_count,pregnant_count,infant_count,toddler_count,total_family_members");
 
     if (familiesError) {
       return NextResponse.json({ success: false, error: familiesError.message }, { status: 500 });
@@ -82,10 +102,14 @@ export async function POST() {
     const familyRows = (families ?? []) as Array<Record<string, unknown>>;
 
     for (const family of familyRows) {
-      const barangayName = String(family.barangay_name ?? family.barangay ?? "Unknown");
-      const key = String(family.barangay_id ?? barangayName);
+      const mappedBarangay = normalizeBarangay(family.barangay_name ?? family.barangay_id);
+      if (!mappedBarangay.barangay_id) {
+        continue;
+      }
+      const barangayName = mappedBarangay.barangay_name;
+      const key = String(mappedBarangay.barangay_id);
       const current = familyGroups.get(key) ?? {
-        barangay_id: family.barangay_id ? String(family.barangay_id) : null,
+        barangay_id: String(mappedBarangay.barangay_id),
         barangay_name: barangayName,
         pwd_count: 0,
         elderly_count: 0,
@@ -124,12 +148,26 @@ export async function POST() {
     const availableFoodPacks = inventoryQuantity(inventory, ["family_food_packs", "food_packs", "recommended_family_food_packs"]);
     const availableMedicineKits = inventoryQuantity(inventory, ["medicine_kits", "medical_kits", "recommended_medicine_kits"]);
     const availableReliefGoods = inventoryQuantity(inventory, ["relief_goods_individual", "individual_relief_goods", "recommended_relief_goods_individual"]);
-    const familyEntries = Array.from(familyGroups.entries());
 
-    const scored = familyEntries.map(([key, totals]) => {
-      const sensorRisk = sensorGroups.get(key) ?? sensorGroups.get(totals.barangay_name);
+    const scored = knownBarangays.map((barangay) => {
+      const key = barangay.barangay_id;
+      const sensorRisk = sensorGroups.get(key);
+      const fallbackTotals: FamilyTotals = {
+        barangay_id: barangay.barangay_id,
+        barangay_name: barangay.barangay_name,
+        pwd_count: 0,
+        elderly_count: 0,
+        four_ps_count: 0,
+        lactating_count: 0,
+        pregnant_count: 0,
+        infant_count: 0,
+        toddler_count: 0,
+        total_family_members: 0,
+        affected_families: 0,
+      };
+      const totals = familyGroups.get(key) ?? fallbackTotals;
       const waterLevelM = sensorRisk?.max_water_level_m ?? 0;
-      const risk_level = riskFromWaterLevel(waterLevelM);
+      const risk_level = sensorRisk && sensorRisk.reading_count === 0 ? "no_reading" : riskFromWaterLevel(waterLevelM);
       const priority_score =
         riskWeight(risk_level) * 100 +
         totals.pwd_count * 12 +
@@ -163,6 +201,14 @@ export async function POST() {
         Math.round(availableReliefGoods * share),
       );
 
+      const noSensorReading = !item.sensorRisk || item.sensorRisk.reading_count === 0;
+      const noFamilyData = item.totals.affected_families === 0;
+      const reasonParts = [
+        noSensorReading ? "no latest sensor reading available" : `${item.risk_level} flood risk at ${item.waterLevelM.toFixed(2)}m`,
+        noFamilyData ? "no family vulnerability data" : `${item.totals.affected_families} affected families`,
+        `priority score ${item.priority_score}`,
+      ];
+
       return {
         barangay_id: item.totals.barangay_id,
         barangay_name: item.totals.barangay_name,
@@ -181,16 +227,31 @@ export async function POST() {
         recommended_family_food_packs,
         recommended_medicine_kits,
         recommended_relief_goods_individual,
-        analysis_reason: `${item.risk_level} flood risk at ${item.waterLevelM.toFixed(2)}m with ${item.totals.affected_families} affected families and priority score ${item.priority_score}.`,
+        analysis_reason: `${reasonParts.join(", ")}.`,
       };
     });
 
     if (recommendations.length > 0) {
-      const { error: saveError } = await supabaseServer.from("ai_recommendations").insert(recommendations);
+      const rowsToSave = recommendations.map((recommendation) => ({
+        barangay_id: recommendation.barangay_id,
+        barangay_name: recommendation.barangay_name,
+        risk_level: recommendation.risk_level,
+        priority_score: recommendation.priority_score,
+        recommended_family_food_packs: recommendation.recommended_family_food_packs,
+        recommended_medicine_kits: recommendation.recommended_medicine_kits,
+        recommended_relief_goods_individual: recommendation.recommended_relief_goods_individual,
+        analysis_reason: recommendation.analysis_reason,
+      }));
+      const { data: savedRows, error: saveError } = await supabaseServer
+        .from("ai_recommendations")
+        .insert(rowsToSave)
+        .select("recommendation_id,barangay_id,barangay_name,risk_level,priority_score,recommended_family_food_packs,recommended_medicine_kits,recommended_relief_goods_individual,analysis_reason,created_at");
 
       if (saveError) {
         return NextResponse.json({ success: false, error: saveError.message }, { status: 500 });
       }
+
+      return NextResponse.json({ success: true, data: savedRows ?? recommendations });
     }
 
     return NextResponse.json({ success: true, data: recommendations });

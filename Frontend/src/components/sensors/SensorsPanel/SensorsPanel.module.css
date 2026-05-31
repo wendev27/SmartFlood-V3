@@ -1,6 +1,7 @@
 .panel {
   display: grid;
   gap: 28px;
+  padding-right: 6px;
 }
 
 .tableCard {
@@ -56,7 +57,65 @@
   padding: 10px 12px;
 }
 
+.selectionMessage {
+  background: #eef6ff;
+  border-radius: 8px;
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
+.tableScroll {
+  max-height: 340px;
+  overflow-y: auto;
+  scrollbar-color: #9bc9ff transparent;
+  scrollbar-width: thin;
+}
+
+.tableScroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tableScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tableScroll::-webkit-scrollbar-thumb {
+  background: #9bc9ff;
+  border-radius: 999px;
+}
+
+.clickableRow {
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.clickableRow:hover,
+.clickableRow:focus-visible {
+  background: #f8fbff;
+  outline: 0;
+}
+
+.selectedRow {
+  background: #eef6ff;
+  box-shadow: inset 4px 0 0 var(--color-blue);
+}
+
+.selectedRow:hover,
+.selectedRow:focus-visible {
+  background: #e7f1ff;
+}
+
 @media (min-width: 900px) {
+  .panel {
+    max-height: calc(100dvh - 190px);
+    overflow-y: auto;
+  }
+
   .toolbar {
     grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(140px, 1fr)) minmax(90px, 0.5fr);
   }

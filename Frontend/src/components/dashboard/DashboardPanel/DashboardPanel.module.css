@@ -1,5 +1,5 @@
 .dashboard {
-  max-width: 940px;
+  width: 100%;
 }
 
 .statsGrid {
@@ -20,7 +20,122 @@
 }
 
 .mapSection {
-  max-width: 900px;
+  width: 100%;
+}
+
+.sensorSection {
+  margin-top: 22px;
+  min-width: 0;
+}
+
+.sensorHeader {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sensorHeader h3 {
+  color: #243245;
+  font-size: 17px;
+  margin: 0 0 4px;
+}
+
+.sensorHeader p {
+  color: #64748b;
+  font-size: 12px;
+  margin: 0;
+}
+
+.sensorScroller {
+  display: flex;
+  gap: 14px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 2px 12px;
+  scrollbar-color: #9bc9ff transparent;
+  scrollbar-width: thin;
+}
+
+.sensorScroller::-webkit-scrollbar {
+  height: 8px;
+}
+
+.sensorScroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sensorScroller::-webkit-scrollbar-thumb {
+  background: #9bc9ff;
+  border-radius: 999px;
+}
+
+.sensorCard {
+  background: #ffffff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  color: #1e293b;
+  cursor: pointer;
+  display: grid;
+  flex: 0 0 clamp(220px, 24vw, 280px);
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.sensorCard:hover,
+.sensorCard:focus-visible {
+  border-color: var(--color-blue);
+  box-shadow: 0 10px 20px rgba(15, 97, 255, 0.14);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.criticalSensor {
+  border-color: #fecaca;
+  box-shadow: inset 4px 0 0 var(--color-danger), 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.sensorCardTop {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.sensorCard strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sensorCard > span,
+.sensorCard small,
+.sensorMeta span {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.sensorMeta {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.sensorMeta b {
+  color: #1e293b;
+  font-size: 12px;
 }
 
 @media (min-width: 680px) {
@@ -39,7 +154,4 @@
     margin-bottom: 22px;
   }
 
-  .mapSection {
-    max-width: min(900px, 74vw);
-  }
 }

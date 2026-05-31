@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
+import { ActionResultModal, type ActionResultType } from "@/components/ui/ActionResultModal";
 import { Button } from "@/components/ui/Button/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ErrorState } from "@/components/ui/ErrorState";
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { fetchJson } from "@/services/apiClient";
 import styles from "./ResidentsPanel.module.css";
@@ -30,6 +34,7 @@ type FamilyRow = {
   family_id?: string;
   familyName: string;
   familyHead: string;
+  barangay: string;
   completeAddress: string;
   street: string;
   pwd: number;
@@ -38,6 +43,9 @@ type FamilyRow = {
   lactating: number;
   pregnant: number;
   infant: number;
+  toddler: number;
+  noChildren: boolean;
+  totalFamilyMembers: number;
 };
 
 type ResidentFormState = {
@@ -97,7 +105,9 @@ const emptyResidentForm: ResidentFormState = {
 export function ResidentsPanel() {
   const [residents, setResidents] = useState<ResidentRow[]>([]);
   const [familyClusters, setFamilyClusters] = useState<FamilyRow[]>([]);
+  const [residentSearch, setResidentSearch] = useState("");
   const [familySearch, setFamilySearch] = useState("");
+  const [selectedFamily, setSelectedFamily] = useState<FamilyRow | null>(null);
   const [isResidentsLoading, setIsResidentsLoading] = useState(true);
   const [isFamiliesLoading, setIsFamiliesLoading] = useState(true);
   const [residentsError, setResidentsError] = useState("");
@@ -107,10 +117,50 @@ export function ResidentsPanel() {
   const [editingResidentId, setEditingResidentId] = useState<string | null>(null);
   const [residentForm, setResidentForm] = useState<ResidentFormState>(emptyResidentForm);
   const [formError, setFormError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resultModal, setResultModal] = useState({
+    open: false,
+    type: "success" as ActionResultType,
+    title: "",
+    description: "",
+    details: "",
+  });
 
-  const displayedResidents = useMemo(() => residents, [residents]);
+  const displayedResidents = useMemo(
+    () => residents.filter((resident) => matchesSearch(residentSearch, [
+      resident.resident_id,
+      resident.first_name,
+      resident.last_name,
+      resident.middle_name,
+      resident.name,
+      resident.age,
+      resident.sex,
+      resident.address,
+      resident.street,
+      resident.barangay,
+      resident.contact,
+    ])),
+    [residentSearch, residents],
+  );
+
+  const displayedFamilies = useMemo(
+    () => familyClusters.filter((family) => matchesSearch(familySearch, [
+      family.family_id,
+      family.familyName,
+      family.familyHead,
+      family.completeAddress,
+      family.street,
+      family.barangay,
+    ])),
+    [familyClusters, familySearch],
+  );
+
+  const connectedResidents = useMemo(
+    () => selectedFamily?.family_id
+      ? residents.filter((resident) => resident.family_id === selectedFamily.family_id)
+      : [],
+    [residents, selectedFamily],
+  );
 
   const refreshResidents = useCallback(async () => {
     setIsResidentsLoading(true);
@@ -129,15 +179,14 @@ export function ResidentsPanel() {
     setIsFamiliesLoading(true);
     setFamiliesError("");
     try {
-      const query = familySearch ? `?search=${encodeURIComponent(familySearch)}` : "";
-      const data = await fetchJson<Record<string, unknown>[]>(`/api/families${query}`);
+      const data = await fetchJson<Record<string, unknown>[]>("/api/families");
       setFamilyClusters(data.map(mapFamily));
     } catch (error) {
       setFamiliesError(error instanceof Error ? error.message : "Unable to load family clusters.");
     } finally {
       setIsFamiliesLoading(false);
     }
-  }, [familySearch]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -168,8 +217,7 @@ export function ResidentsPanel() {
       setIsFamiliesLoading(true);
       setFamiliesError("");
       try {
-        const query = familySearch ? `?search=${encodeURIComponent(familySearch)}` : "";
-        const data = await fetchJson<Record<string, unknown>[]>(`/api/families${query}`);
+        const data = await fetchJson<Record<string, unknown>[]>("/api/families");
         if (!cancelled) setFamilyClusters(data.map(mapFamily));
       } catch (error) {
         if (!cancelled) setFamiliesError(error instanceof Error ? error.message : "Unable to load family clusters.");
@@ -182,14 +230,13 @@ export function ResidentsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [familySearch]);
+  }, []);
 
   function openAddResident() {
     setResidentModalMode("add");
     setEditingResidentId(null);
     setResidentForm(emptyResidentForm);
     setFormError("");
-    setSuccessMessage("");
     setIsResidentModalOpen(true);
   }
 
@@ -214,7 +261,6 @@ export function ResidentsPanel() {
       selected_family_id: resident.family_id ?? "",
     });
     setFormError("");
-    setSuccessMessage("");
     setIsResidentModalOpen(true);
   }
 
@@ -235,7 +281,6 @@ export function ResidentsPanel() {
   async function submitResident(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError("");
-    setSuccessMessage("");
 
     const normalizedBarangay = normalizeBarangay(residentForm.barangay_name, residentForm.barangay_id);
     if (!residentForm.last_name.trim() || !residentForm.first_name.trim() || !residentForm.complete_address.trim() || !normalizedBarangay) {
@@ -267,10 +312,26 @@ export function ResidentsPanel() {
 
       setResidentForm(emptyResidentForm);
       setIsResidentModalOpen(false);
-      setSuccessMessage(residentModalMode === "edit" ? "Resident updated." : "Resident created.");
+      setResultModal({
+        open: true,
+        type: "success",
+        title: residentModalMode === "edit" ? "Resident Updated Successfully" : "Resident Created Successfully",
+        description: residentModalMode === "edit"
+          ? "The resident profile has been updated with the latest information."
+          : "The resident record has been saved and linked to the correct family cluster.",
+        details: "Resident information is now available in the live residents table.",
+      });
       await Promise.all([refreshResidents(), refreshFamilies()]);
     } catch (saveError) {
-      setFormError(saveError instanceof Error ? saveError.message : "Unable to save resident. Please try again.");
+      const message = saveError instanceof Error ? saveError.message : "Unable to save resident. Please try again.";
+      setFormError(message);
+      setResultModal({
+        open: true,
+        type: "error",
+        title: residentModalMode === "edit" ? "Failed to Update Resident" : "Failed to Create Resident",
+        description: message,
+        details: "Please review the form fields and try saving the resident again.",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -286,18 +347,20 @@ export function ResidentsPanel() {
               <label className={styles.searchField}>
                 <span className="srOnly">Search residents</span>
                 <span className={styles.searchIcon} aria-hidden="true" />
-                <input type="search" placeholder="Search by name, ID, address, age, sex, or contact..." />
+                <input
+                  type="search"
+                  placeholder="Search by name, ID, address, age, sex, or contact..."
+                  value={residentSearch}
+                  onChange={(event) => setResidentSearch(event.target.value)}
+                />
               </label>
-              <button className={styles.filterButton} type="button">
-                <span className={styles.filterIcon} aria-hidden="true" />
-                Filters
-              </button>
               <button className={styles.addButton} type="button" onClick={openAddResident}>
                 + Add New Resident
               </button>
             </div>
-            {successMessage ? <p className={styles.successMessage}>{successMessage}</p> : null}
-            {residentsError ? <p className={styles.errorMessage}>{residentsError}</p> : null}
+            {residentsError ? (
+              <ErrorState title="Unable to Load Residents" message={residentsError} retryLabel="Retry" onRetry={refreshResidents} />
+            ) : null}
 
             <div className={styles.wrap}>
               <table className={styles.table}>
@@ -316,12 +379,12 @@ export function ResidentsPanel() {
                 <tbody>
                   {displayedResidents.map((resident, index) => (
                     <tr
-                      key={resident.resident_id ?? `resident-${index}`}
+                      key={resident.resident_id || `${resident.first_name}-${resident.last_name}-${index}`}
                       className={cn(resident.selected && styles.selected)}
                     >
                       <td>{String(index + 1).padStart(3, "0")}</td>
                       <td>
-                        <a href="#">{resident.name}</a>
+                        <span className={styles.linkText}>{resident.name}</span>
                       </td>
                       <td>{resident.age}</td>
                       <td>{resident.sex}</td>
@@ -338,12 +401,19 @@ export function ResidentsPanel() {
                   ))}
                   {isResidentsLoading ? (
                     <tr>
-                      <td colSpan={8}>Loading residents...</td>
+                      <td colSpan={8}><LoadingState message="Loading residents..." /></td>
                     </tr>
                   ) : null}
                   {!isResidentsLoading && displayedResidents.length === 0 ? (
                     <tr>
-                      <td colSpan={8}>No residents found.</td>
+                      <td colSpan={8}>
+                        <EmptyState
+                          title={residents.length === 0 ? "No residents found" : "No residents match your search"}
+                          description={residents.length === 0 ? "Resident records will appear here once they are created." : "Try another name, address, ID, age, sex, or contact number."}
+                          actionLabel={residents.length === 0 ? "Add Resident" : undefined}
+                          onAction={residents.length === 0 ? openAddResident : undefined}
+                        />
+                      </td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -361,13 +431,15 @@ export function ResidentsPanel() {
                 <span className={styles.searchIcon} aria-hidden="true" />
                 <input
                   type="search"
-                  placeholder="Search by name, ID, address, age, sex, or contact..."
+                  placeholder="Search by family ID, name, head, or address..."
                   value={familySearch}
                   onChange={(event) => setFamilySearch(event.target.value)}
                 />
               </label>
             </div>
-            {familiesError ? <p className={styles.errorMessage}>{familiesError}</p> : null}
+            {familiesError ? (
+              <ErrorState title="Unable to Load Family Clusters" message={familiesError} retryLabel="Retry" onRetry={refreshFamilies} />
+            ) : null}
 
             <div className={styles.wrap}>
               <table className={styles.table}>
@@ -385,11 +457,13 @@ export function ResidentsPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {familyClusters.map((cluster, index) => (
-                    <tr key={cluster.family_id ?? `family-${index}`}>
-                      <td>{cluster.family_id ?? String(index + 1).padStart(3, "0")}</td>
+                  {displayedFamilies.map((cluster, index) => (
+                    <tr key={cluster.family_id || `${cluster.familyName}-${index}`}>
+                      <td>{`FC-${String(index + 1).padStart(3, "0")}`}</td>
                       <td>
-                        <a href="#">{cluster.familyName}</a>
+                        <button className={styles.linkButton} type="button" onClick={() => setSelectedFamily(cluster)}>
+                          {cluster.familyName}
+                        </button>
                       </td>
                       <td>{cluster.familyHead}</td>
                       <td>{cluster.pwd}</td>
@@ -402,12 +476,17 @@ export function ResidentsPanel() {
                   ))}
                   {isFamiliesLoading ? (
                     <tr>
-                      <td colSpan={9}>Loading family clusters...</td>
+                      <td colSpan={9}><LoadingState message="Loading family clusters..." /></td>
                     </tr>
                   ) : null}
-                  {!isFamiliesLoading && familyClusters.length === 0 ? (
+                  {!isFamiliesLoading && displayedFamilies.length === 0 ? (
                     <tr>
-                      <td colSpan={9}>No family clusters found.</td>
+                      <td colSpan={9}>
+                        <EmptyState
+                          title={familyClusters.length === 0 ? "No family clusters found" : "No family clusters match your search"}
+                          description={familyClusters.length === 0 ? "Family clusters are created when family head residents are registered." : "Try searching by family name, head, ID, barangay, or address."}
+                        />
+                      </td>
                     </tr>
                   ) : null}
                 </tbody>
@@ -491,8 +570,8 @@ export function ResidentsPanel() {
                 Barangay
                 <select value={residentForm.barangay_id} onChange={(event) => handleBarangayChange(event.target.value)}>
                   <option value="">Select barangay</option>
-                  {barangays.map((barangay) => (
-                    <option key={barangay.id} value={barangay.id}>{barangay.name}</option>
+                  {barangays.map((barangay, index) => (
+                    <option key={barangay.id || `${barangay.name}-${index}`} value={barangay.id}>{barangay.name}</option>
                   ))}
                 </select>
               </label>
@@ -536,7 +615,7 @@ export function ResidentsPanel() {
                   <tbody>
                     {familyClusters.map((family, index) => (
                       <tr
-                        key={family.family_id ?? `select-family-${index}`}
+                        key={family.family_id || `${family.familyName}-${index}`}
                         className={cn(residentForm.selected_family_id === family.family_id && styles.selected)}
                       >
                         <td>{family.familyName}</td>
@@ -551,12 +630,17 @@ export function ResidentsPanel() {
                     ))}
                     {isFamiliesLoading ? (
                       <tr>
-                        <td colSpan={4}>Loading family clusters...</td>
+                        <td colSpan={4}><LoadingState message="Loading family clusters..." /></td>
                       </tr>
                     ) : null}
                     {!isFamiliesLoading && familyClusters.length === 0 ? (
                       <tr>
-                        <td colSpan={4}>No family clusters found.</td>
+                        <td colSpan={4}>
+                          <EmptyState
+                            title="No family clusters found"
+                            description="Create a family head resident first before linking family members."
+                          />
+                        </td>
                       </tr>
                     ) : null}
                   </tbody>
@@ -573,6 +657,96 @@ export function ResidentsPanel() {
           </footer>
         </form>
       </Modal>
+      <Modal
+        isOpen={Boolean(selectedFamily)}
+        onClose={() => setSelectedFamily(null)}
+        labelledBy="family-details-title"
+        className={styles.familyDetailsDialog}
+      >
+        {selectedFamily ? (
+          <>
+            <header className={styles.modalHeader}>
+              <div>
+                <h2 id="family-details-title">{selectedFamily.familyName}</h2>
+                <p>Family Cluster Details</p>
+              </div>
+              <button className={styles.closeButton} type="button" aria-label="Close family details" onClick={() => setSelectedFamily(null)}>
+                x
+              </button>
+            </header>
+            <div className={styles.familyDetailsBody}>
+              <section className={styles.detailsSection}>
+                <h3>Family Details</h3>
+                <dl className={styles.detailsGrid}>
+                  <Detail label="Family Name" value={selectedFamily.familyName} />
+                  <Detail label="Family Head" value={selectedFamily.familyHead} />
+                  <Detail label="Barangay" value={selectedFamily.barangay} />
+                  <Detail label="Street" value={selectedFamily.street} />
+                  <Detail label="Complete Address" value={selectedFamily.completeAddress} />
+                  <Detail label="Total Family Members" value={selectedFamily.totalFamilyMembers} />
+                  <Detail label="PWD" value={selectedFamily.pwd} />
+                  <Detail label="Elderly" value={selectedFamily.elderly} />
+                  <Detail label="4Ps" value={selectedFamily.fourPs} />
+                  <Detail label="Lactating" value={selectedFamily.lactating} />
+                  <Detail label="Pregnant" value={selectedFamily.pregnant} />
+                  <Detail label="Infant" value={selectedFamily.infant} />
+                  <Detail label="Toddler" value={selectedFamily.toddler} />
+                  <Detail label="No Children" value={selectedFamily.noChildren ? "Yes" : "No"} />
+                </dl>
+              </section>
+              <section className={styles.detailsSection}>
+                <h3>Connected Residents</h3>
+                <div className={cn(styles.wrap, styles.connectedResidentsWrap)}>
+                  <table className={cn(styles.table, styles.connectedResidentsTable)}>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Age</th>
+                        <th>Sex</th>
+                        <th>Contact</th>
+                        <th>Family Head</th>
+                        <th>Address</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {connectedResidents.map((resident, index) => (
+                        <tr key={resident.resident_id || `${resident.first_name}-${resident.last_name}-${index}`}>
+                          <td>{resident.name}</td>
+                          <td>{resident.age}</td>
+                          <td>{resident.sex}</td>
+                          <td>{resident.contact}</td>
+                          <td>{resident.is_family_head ? "Yes" : "No"}</td>
+                          <td>{resident.address}</td>
+                        </tr>
+                      ))}
+                      {connectedResidents.length === 0 ? (
+                        <tr>
+                          <td colSpan={6}>
+                            <EmptyState
+                              title="No residents linked yet"
+                              description="Residents connected to this family cluster will appear here."
+                            />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </>
+        ) : null}
+      </Modal>
+      <ActionResultModal
+        open={resultModal.open}
+        type={resultModal.type}
+        title={resultModal.title}
+        description={resultModal.description}
+        details={resultModal.details}
+        primaryLabel="OK"
+        onPrimary={() => setResultModal((current) => ({ ...current, open: false }))}
+        onClose={() => setResultModal((current) => ({ ...current, open: false }))}
+      />
     </section>
   );
 }
@@ -605,6 +779,7 @@ function mapFamily(row: Record<string, unknown>): FamilyRow {
     family_id: row.family_id ? String(row.family_id) : undefined,
     familyName: String(row.family_name ?? ""),
     familyHead: String(row.family_head_name ?? ""),
+    barangay: String(row.barangay_name ?? ""),
     completeAddress: String(row.complete_address ?? ""),
     street: String(row.street ?? ""),
     pwd: Number(row.pwd_count ?? 0),
@@ -613,7 +788,26 @@ function mapFamily(row: Record<string, unknown>): FamilyRow {
     lactating: Number(row.lactating_count ?? 0),
     pregnant: Number(row.pregnant_count ?? 0),
     infant: Number(row.infant_count ?? 0),
+    toddler: Number(row.toddler_count ?? 0),
+    noChildren: Boolean(row.no_children),
+    totalFamilyMembers: Number(row.total_family_members ?? 0),
   };
+}
+
+function matchesSearch(search: string, values: unknown[]) {
+  const normalizedSearch = search.trim().toLowerCase();
+  if (!normalizedSearch) return true;
+
+  return values.some((value) => String(value ?? "").toLowerCase().includes(normalizedSearch));
+}
+
+function Detail({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value === "" ? "-" : value}</dd>
+    </div>
+  );
 }
 
 function CountField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
