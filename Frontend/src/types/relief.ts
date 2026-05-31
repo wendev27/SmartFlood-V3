@@ -18,6 +18,12 @@ export interface ReliefRecommendation {
   id: string;
   barangay_name?: string;
   barangay: string;
+  riskLevel: string;
+  affectedFamilies: number;
+  familyFoodPacks: number;
+  medicineKits: number;
+  reliefForIndividual: number;
+  hasSensorReading: boolean;
   recommendedItems: string;
   analysisReason: string;
   report: string;

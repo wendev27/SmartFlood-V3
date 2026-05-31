@@ -27,6 +27,7 @@ type AccountUserRow = {
   sex: string;
   role_id: number | null;
   role_label: string;
+  role_name: string;
   department: string;
   barangay_id: number | null;
   barangay_name: string;
@@ -67,10 +68,10 @@ const emptyForm: AccountFormState = {
 };
 
 const roleOptions = [
-  { id: "1", label: "Super Admin" },
-  { id: "2", label: "NDRRMO Officer" },
-  { id: "3", label: "City Welfare" },
-  { id: "4", label: "Barangay Official" },
+  "Super Admin",
+  "NDRRMO Officer",
+  "City Welfare",
+  "Barangay Official",
 ];
 
 const barangayOptions = [
@@ -78,8 +79,6 @@ const barangayOptions = [
   { id: "2", label: "Barangay Catmon" },
   { id: "3", label: "Barangay Potrero" },
 ];
-
-const departmentOptions = ["NDRRMO", "City Welfare", "Barangay Tanong", "Barangay Catmon", "Barangay Potrero"];
 
 export function AccountManagement() {
   const [users, setUsers] = useState<AccountUserRow[]>([]);
@@ -123,22 +122,32 @@ export function AccountManagement() {
     refreshUsers();
   }, [refreshUsers]);
 
+  const departmentOptions = useMemo(() => uniqueSorted(users.map((user) => user.department)), [users]);
+  const roleFilterOptions = useMemo(() => {
+    const labels = new Set(roleOptions);
+    users.forEach((user) => labels.add(user.role_label || "Unassigned"));
+    return Array.from(labels).sort((a, b) => roleSortValue(a) - roleSortValue(b) || a.localeCompare(b));
+  }, [users]);
+
   const displayedUsers = useMemo(() => users.filter((user) => {
     const normalizedSearch = search.trim().toLowerCase();
+    const normalizedStatus = statusLabel(user.status);
     const matchesSearch = !normalizedSearch || [
+      user.first_name,
+      user.last_name,
       user.full_name,
       user.email,
       user.mobile_number,
       user.role_label,
+      user.role_name,
       user.department,
       user.barangay_name,
-      user.status,
-      statusLabel(user.status),
+      normalizedStatus,
     ].some((value) => value.toLowerCase().includes(normalizedSearch));
 
     return matchesSearch
-      && (!departmentFilter || user.department === departmentFilter || user.barangay_name === departmentFilter)
-      && (!roleFilter || String(user.role_id ?? "") === roleFilter)
+      && (!departmentFilter || user.department === departmentFilter)
+      && (!roleFilter || user.role_label === roleFilter)
       && (!statusFilter || user.status === statusFilter);
   }), [departmentFilter, roleFilter, search, statusFilter, users]);
 
@@ -318,12 +327,12 @@ export function AccountManagement() {
         </select>
         <select aria-label="Role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
           <option value="">All Roles</option>
-          {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.label}</option>)}
+          {roleFilterOptions.map((role) => <option key={role} value={role}>{role}</option>)}
         </select>
         <select aria-label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
           <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="active">Enabled</option>
+          <option value="inactive">Disabled</option>
           <option value="blocked">Blocked</option>
         </select>
         <button type="button" className={styles.exportButton} onClick={() => {
@@ -350,10 +359,6 @@ export function AccountManagement() {
                 <button className={styles.actionPill} type="button" onClick={() => setPreviewUser(user)}>
                   <span className={`${styles.actionIcon} ${styles.eyeIcon}`} aria-hidden="true" />
                   Preview
-                </button>
-                <button className={styles.actionPill} type="button" onClick={() => openEditForm(user)}>
-                  <span className={`${styles.actionIcon} ${styles.pencilIcon}`} aria-hidden="true" />
-                  Edit
                 </button>
               </div>
             </td>
@@ -397,7 +402,7 @@ export function AccountManagement() {
             {formMode === "add" ? <label>Confirm Password<input type="password" value={form.confirm_password} onChange={(event) => updateForm("confirm_password", event.target.value)} /></label> : null}
             <label>Role<select value={form.role_id} onChange={(event) => updateForm("role_id", event.target.value)}>
               <option value="">Select role</option>
-              {roleOptions.map((role) => <option key={role.id} value={role.id}>{role.label}</option>)}
+              {roleOptions.map((role, index) => <option key={role} value={String(index + 1)}>{role}</option>)}
             </select></label>
             <label>Department / Barangay<select value={form.barangay_id} onChange={(event) => updateForm("barangay_id", event.target.value)}>
               <option value="">No barangay</option>
@@ -539,7 +544,10 @@ function statusLabel(status: AccountStatus) {
 function mapAccountUser(row: Record<string, unknown>): AccountUserRow {
   const firstName = String(row.first_name ?? "");
   const lastName = String(row.last_name ?? "");
-  const status = String(row.status ?? "inactive").toLowerCase() as AccountStatus;
+  const roleId = row.role_id == null ? null : Number(row.role_id);
+  const roleName = String(row.role_name ?? row.role_label ?? "");
+  const roleLabel = formatRole(row.role_label ?? row.role_name ?? roleId);
+  const status = normalizeStatus(row.status);
 
   return {
     id: String(row.id ?? row.user_id ?? ""),
@@ -550,12 +558,13 @@ function mapAccountUser(row: Record<string, unknown>): AccountUserRow {
     mobile_number: String(row.mobile_number ?? ""),
     address: String(row.address ?? ""),
     sex: String(row.sex ?? ""),
-    role_id: row.role_id == null ? null : Number(row.role_id),
-    role_label: formatRole(row.role_label ?? row.role_name ?? row.role_id),
-    department: formatDepartment(row.department ?? row.barangay_name ?? row.barangay ?? row.role_id),
+    role_id: roleId,
+    role_label: roleLabel,
+    role_name: roleName,
+    department: formatDepartment(row, roleLabel),
     barangay_id: row.barangay_id == null ? null : Number(row.barangay_id),
     barangay_name: String(row.barangay_name ?? row.barangay ?? ""),
-    status: status === "active" || status === "blocked" ? status : "inactive",
+    status,
     failed_login_attempts: Number(row.failed_login_attempts ?? 0),
     locked_until: String(row.locked_until ?? ""),
     last_login_at: String(row.last_login_at ?? ""),
@@ -564,12 +573,15 @@ function mapAccountUser(row: Record<string, unknown>): AccountUserRow {
   };
 }
 
-function formatDepartment(value: unknown) {
-  const department = String(value || "NDRRMO");
-  if (/city|welfare|cswdd/i.test(department)) return "City Welfare";
-  if (/barangay/i.test(department)) return department;
-  if (department === "4") return "Barangay";
-  return "NDRRMO";
+function formatDepartment(row: Record<string, unknown>, roleLabel: string) {
+  const barangay = String(row.barangay_name ?? row.barangay ?? "").trim();
+  const department = String(row.department ?? "").trim();
+  if (roleLabel === "Super Admin" || roleLabel === "NDRRMO Officer") return "NDRRMO";
+  if (roleLabel === "City Welfare") return "City Welfare";
+  if (roleLabel === "Barangay Official") return barangay || department || "Unassigned";
+  if (department) return department;
+  if (barangay) return barangay;
+  return "Unassigned";
 }
 
 function formatRole(value: unknown) {
@@ -579,6 +591,23 @@ function formatRole(value: unknown) {
   if (/welfare|cswdd/i.test(role) || role === "3" || role === "CITY_WELFARE") return "City Welfare";
   if (/barangay/i.test(role) || role === "4" || role === "BARANGAY_OFFICIAL") return "Barangay Official";
   return role || "Unassigned";
+}
+
+function normalizeStatus(value: unknown): AccountStatus {
+  const status = String(value ?? "").trim().toLowerCase();
+  if (status === "active" || status === "enabled") return "active";
+  if (status === "blocked") return "blocked";
+  return "inactive";
+}
+
+function uniqueSorted(values: string[]) {
+  return Array.from(new Set(values.map((value) => value.trim() || "Unassigned"))).sort((a, b) => a.localeCompare(b));
+}
+
+function roleSortValue(role: string) {
+  const order = ["Super Admin", "NDRRMO Officer", "City Welfare", "Barangay Official", "Unassigned"];
+  const index = order.indexOf(role);
+  return index === -1 ? order.length : index;
 }
 
 function formatDateTime(value: string, emptyLabel = "No login yet") {

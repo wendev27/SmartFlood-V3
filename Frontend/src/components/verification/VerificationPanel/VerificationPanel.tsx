@@ -79,6 +79,16 @@ export function VerificationPanel() {
 
   async function reviewApplication(action: "approved" | "rejected") {
     if (!selectedApplication) return;
+    if (selectedApplication.status !== "pending") {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Application Already Reviewed",
+        description: "This application has already been reviewed.",
+        details: "Approved and rejected applications are read-only.",
+      });
+      return;
+    }
 
     const selectedFamilyId = selectedApplication.raw?.selected_family_id ?? selectedApplication.raw?.family_id;
     const body: Record<string, unknown> = {
@@ -161,10 +171,6 @@ export function VerificationPanel() {
               setSelectedApplication(application);
               setIsReviewOpen(true);
             }}
-            onEdit={application.status === "approved" ? () => {
-              setApplicationMode("edit");
-              setIsApplicationOpen(true);
-            } : undefined}
           />
         ))}
         {!isLoading && visibleApplications.length === 0 ? (

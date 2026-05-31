@@ -31,6 +31,17 @@
   opacity: 0.9;
 }
 
+.titleBlock {
+  min-width: 0;
+}
+
+.titleRow {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .close {
   background: transparent;
   border: 2px solid #ffffff;
@@ -119,5 +130,10 @@
 
   .actions {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .actions:has(button:only-child) {
+    grid-template-columns: minmax(180px, 260px);
+    justify-content: end;
   }
 }

@@ -268,6 +268,14 @@ export function ResidentsPanel() {
     setResidentForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateNumberField<K extends keyof ResidentFormState>(field: K, value: string) {
+    if (/^\d*$/.test(value)) updateForm(field, value as ResidentFormState[K]);
+  }
+
+  function normalizeNumberField<K extends keyof ResidentFormState>(field: K) {
+    setResidentForm((current) => ({ ...current, [field]: normalizeWholeNumberInput(String(current[field] ?? "")) }));
+  }
+
   function handleBarangayChange(value: string) {
     const barangay = barangays.find((item) => item.id === value);
     updateForm("barangay_id", value);
@@ -534,7 +542,7 @@ export function ResidentsPanel() {
               </label>
               <label>
                 Age
-                <input value={residentForm.age} onChange={(event) => updateForm("age", event.target.value)} placeholder="e.g., 25" type="number" min="0" />
+                <input value={residentForm.age} onBlur={() => normalizeNumberField("age")} onChange={(event) => updateNumberField("age", event.target.value)} placeholder="e.g., 25" type="number" min="0" />
               </label>
               <label>
                 Sex
@@ -550,7 +558,7 @@ export function ResidentsPanel() {
                   type="checkbox"
                   onChange={(event) => updateForm("is_family_head", event.target.checked)}
                 />
-                Family Head
+                <span>Family Head</span>
               </label>
             </div>
           </section>
@@ -814,9 +822,23 @@ function CountField({ label, value, onChange }: { label: string; value: string; 
   return (
     <label>
       {label}
-      <input type="number" min="0" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input
+        type="number"
+        min="0"
+        value={value}
+        onBlur={() => onChange(normalizeWholeNumberInput(value))}
+        onChange={(event) => {
+          if (/^\d*$/.test(event.target.value)) onChange(event.target.value);
+        }}
+      />
     </label>
   );
+}
+
+function normalizeWholeNumberInput(value: string) {
+  if (value === "") return "0";
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? String(Math.floor(parsed)) : "0";
 }
 
 function normalizeBarangay(barangayName: string, barangayId: string) {

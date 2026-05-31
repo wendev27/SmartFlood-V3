@@ -17,6 +17,21 @@ type FamilyTotals = {
   affected_families: number;
 };
 
+type ScoredBarangay = {
+  key: string;
+  totals: FamilyTotals;
+  sensorRisk?: {
+    barangay_id: string | null;
+    barangay_name: string;
+    max_water_level_m: number | null;
+    sensor_count: number;
+    reading_count: number;
+  };
+  waterLevelM: number;
+  risk_level: string;
+  priority_score: number;
+};
+
 const knownBarangays = [
   { barangay_id: "1", barangay_name: "Barangay Tanong" },
   { barangay_id: "2", barangay_name: "Barangay Catmon" },
@@ -40,18 +55,28 @@ function riskWeight(riskLevel: string) {
   return 1;
 }
 
-function inventoryQuantity(row: Record<string, unknown> | null, keys: string[]) {
-  if (!row) return 0;
-
+function inventoryInput(body: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
-    if (row[key] !== undefined) return toNumber(row[key]);
+    if (body[key] !== undefined) return Math.max(0, Math.floor(toNumber(body[key])));
   }
 
   return 0;
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const availableFoodPacks = inventoryInput(body, ["family_food_packs", "available_family_food_packs"]);
+    const availableMedicineKits = inventoryInput(body, ["medicine_kits", "available_medicine_kits"]);
+    const availableReliefGoods = inventoryInput(body, ["relief_goods_individual", "available_relief_goods_individual"]);
+
+    if (availableFoodPacks + availableMedicineKits + availableReliefGoods <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Please input available relief inventory before generating recommendations." },
+        { status: 400 },
+      );
+    }
+
     const db = await getDb();
     const sensors = await db.collection("sensors").find({}).toArray();
     const readings = await db.collection("sensor_readings").aggregate([
@@ -134,21 +159,6 @@ export async function POST() {
       familyGroups.set(key, current);
     }
 
-    const { data: inventoryRows, error: inventoryError } = await supabaseServer
-      .from("relief_inventory")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(1);
-
-    if (inventoryError) {
-      return NextResponse.json({ success: false, error: inventoryError.message }, { status: 500 });
-    }
-
-    const inventory = ((inventoryRows as Array<Record<string, unknown>> | null)?.[0] ?? null) as Record<string, unknown> | null;
-    const availableFoodPacks = inventoryQuantity(inventory, ["family_food_packs", "food_packs", "recommended_family_food_packs"]);
-    const availableMedicineKits = inventoryQuantity(inventory, ["medicine_kits", "medical_kits", "recommended_medicine_kits"]);
-    const availableReliefGoods = inventoryQuantity(inventory, ["relief_goods_individual", "individual_relief_goods", "recommended_relief_goods_individual"]);
-
     const scored = knownBarangays.map((barangay) => {
       const key = barangay.barangay_id;
       const sensorRisk = sensorGroups.get(key);
@@ -182,32 +192,35 @@ export async function POST() {
       return { key, totals, sensorRisk, waterLevelM, risk_level, priority_score };
     }).sort((a, b) => b.priority_score - a.priority_score);
 
-    const totalPriority = scored.reduce((sum, item) => sum + item.priority_score, 0) || 1;
-    const recommendations = scored.map((item) => {
-      const share = item.priority_score / totalPriority;
-      const recommended_family_food_packs = Math.min(
-        item.totals.affected_families,
-        Math.round(availableFoodPacks * share),
-      );
-      const vulnerableMedicalNeed =
+    const foodAllocations = allocateInventory(scored, availableFoodPacks, (item) => Math.max(1, item.totals.affected_families));
+    const medicineAllocations = allocateInventory(scored, availableMedicineKits, (item) =>
+      Math.max(
+        1,
         item.totals.pwd_count +
-        item.totals.elderly_count +
-        item.totals.lactating_count +
-        item.totals.pregnant_count +
-        item.totals.infant_count;
-      const recommended_medicine_kits = Math.min(vulnerableMedicalNeed, Math.round(availableMedicineKits * share));
-      const recommended_relief_goods_individual = Math.min(
-        item.totals.total_family_members,
-        Math.round(availableReliefGoods * share),
-      );
+          item.totals.elderly_count +
+          item.totals.lactating_count +
+          item.totals.pregnant_count +
+          item.totals.infant_count,
+      ),
+    );
+    const goodsAllocations = allocateInventory(scored, availableReliefGoods, (item) => Math.max(1, item.totals.total_family_members));
+
+    const recommendations = scored.map((item) => {
+      const recommended_family_food_packs = foodAllocations.get(item.key) ?? 0;
+      const recommended_medicine_kits = medicineAllocations.get(item.key) ?? 0;
+      const recommended_relief_goods_individual = goodsAllocations.get(item.key) ?? 0;
 
       const noSensorReading = !item.sensorRisk || item.sensorRisk.reading_count === 0;
       const noFamilyData = item.totals.affected_families === 0;
-      const reasonParts = [
-        noSensorReading ? "no latest sensor reading available" : `${item.risk_level} flood risk at ${item.waterLevelM.toFixed(2)}m`,
-        noFamilyData ? "no family vulnerability data" : `${item.totals.affected_families} affected families`,
-        `priority score ${item.priority_score}`,
-      ];
+      const hasAllocation = recommended_family_food_packs + recommended_medicine_kits + recommended_relief_goods_individual > 0;
+      const baseReason = noSensorReading
+        ? `No latest sensor reading available. Based on ${item.totals.affected_families} affected ${item.totals.affected_families === 1 ? "family record" : "family records"}.`
+        : `${riskLabel(item.risk_level)} flood risk detected at ${item.waterLevelM.toFixed(2)}m with ${item.totals.affected_families} affected ${item.totals.affected_families === 1 ? "family" : "families"}.`;
+      const allocationReason = hasAllocation
+        ? "Relief allocation prioritized based on available inventory."
+        : noFamilyData
+          ? "No family vulnerability data is currently available for this barangay."
+          : "Current inventory was insufficient for this barangay after higher-priority allocation.";
 
       return {
         barangay_id: item.totals.barangay_id,
@@ -227,7 +240,7 @@ export async function POST() {
         recommended_family_food_packs,
         recommended_medicine_kits,
         recommended_relief_goods_individual,
-        analysis_reason: `${reasonParts.join(", ")}.`,
+        analysis_reason: `${baseReason} ${allocationReason}`,
       };
     });
 
@@ -258,4 +271,53 @@ export async function POST() {
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
   }
+}
+
+function allocateInventory(scored: ScoredBarangay[], available: number, needFor: (item: ScoredBarangay) => number) {
+  const allocations = new Map<string, number>(scored.map((item) => [item.key, 0]));
+  if (available <= 0 || scored.length === 0) return allocations;
+
+  const needs = new Map(scored.map((item) => [item.key, Math.max(0, Math.floor(needFor(item)))]));
+  const totalPriority = scored.reduce((sum, item) => sum + item.priority_score, 0) || 1;
+  let remaining = available;
+
+  for (const item of scored) {
+    const need = needs.get(item.key) ?? 0;
+    if (need <= 0) continue;
+    const share = Math.floor((available * item.priority_score) / totalPriority);
+    const allocation = Math.min(share, need, remaining);
+    allocations.set(item.key, allocation);
+    remaining -= allocation;
+  }
+
+  const top = scored[0];
+  if (top && remaining > 0 && (allocations.get(top.key) ?? 0) === 0 && (needs.get(top.key) ?? 0) > 0) {
+    allocations.set(top.key, 1);
+    remaining -= 1;
+  }
+
+  while (remaining > 0) {
+    let distributed = false;
+    for (const item of scored) {
+      const current = allocations.get(item.key) ?? 0;
+      const need = needs.get(item.key) ?? 0;
+      if (current >= need) continue;
+
+      allocations.set(item.key, current + 1);
+      remaining -= 1;
+      distributed = true;
+      if (remaining === 0) break;
+    }
+
+    if (!distributed) break;
+  }
+
+  return allocations;
+}
+
+function riskLabel(riskLevel: string) {
+  if (riskLevel === "critical") return "Critical";
+  if (riskLevel === "warning") return "Flood warning";
+  if (riskLevel === "no_reading") return "No reading";
+  return "Normal";
 }

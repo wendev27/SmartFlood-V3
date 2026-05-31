@@ -10,6 +10,8 @@ interface ApplicationCardProps {
 }
 
 export function ApplicationCard({ application, onReview, onEdit }: ApplicationCardProps) {
+  const isPending = application.status === "pending";
+
   return (
     <article className={styles.card}>
       <div className={styles.avatar}>{application.initials}</div>
@@ -36,7 +38,7 @@ export function ApplicationCard({ application, onReview, onEdit }: ApplicationCa
         ) : null}
       </div>
       <div className={styles.actions}>
-        <Button onClick={onReview}>⊙ Review</Button>
+        <Button onClick={onReview}>⊙ {isPending ? "Review" : "View"}</Button>
         {onEdit ? <Button tone="muted" onClick={onEdit}>✎ Edit</Button> : null}
       </div>
     </article>

@@ -26,6 +26,10 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: applicationError.message }, { status: 500 });
     }
 
+    if (application.status === "approved" || application.status === "rejected") {
+      return NextResponse.json({ success: false, error: "This application has already been reviewed." }, { status: 400 });
+    }
+
     const reviewedAt = new Date().toISOString();
     const reviewFields = {
       status: action,
