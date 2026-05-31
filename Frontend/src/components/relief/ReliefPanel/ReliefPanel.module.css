@@ -535,6 +535,16 @@
   margin: 0;
 }
 
+.reasoningList {
+  color: #111827;
+  display: grid;
+  font-size: 14px;
+  gap: 6px;
+  line-height: 1.6;
+  margin: 0;
+  padding-left: 20px;
+}
+
 .reportGrid {
   display: grid;
   gap: 10px;

@@ -27,6 +27,13 @@ export interface ReliefRecommendation {
   recommendedItems: string;
   analysisReason: string;
   report: string;
+  fuzzyExplanation?: {
+    waterLevelM: number | null;
+    confidence: number | null;
+    riskLabel: string;
+  };
+  ahpVulnerabilityScore?: number | null;
+  reasoningSteps?: string[];
 }
 
 export interface ReliefAllocationHistory {
