@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
+import { getDashboardSessionUserId } from "@/lib/dashboardSession";
+import { filterLogsForViewer } from "@/lib/logVisibility";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET(req: NextRequest) {
   try {
+    const viewer = await getLogViewer(req);
+    if (!viewer) {
+      return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? 200), 1), 500);
     let query = supabaseServer
       .from("audit_logs")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(limit);
+      .limit(500);
 
     const module = searchParams.get("module");
     const action = searchParams.get("action");
@@ -25,10 +32,29 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 
-    return NextResponse.json({ success: true, data: data ?? [] });
+    return NextResponse.json({ success: true, data: filterLogsForViewer(data ?? [], viewer).slice(0, limit) });
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
   }
+}
+
+async function getLogViewer(req: NextRequest) {
+  const userId = getDashboardSessionUserId(req);
+  if (!userId) return null;
+
+  const { data, error } = await supabaseServer
+    .from("app_users")
+    .select("id,role_id,barangay_id,barangay,status")
+    .eq("id", userId)
+    .single();
+
+  if (error || !data || String(data.status ?? "").toLowerCase() !== "active") return null;
+  return {
+    id: String(data.id),
+    role_id: data.role_id == null ? null : Number(data.role_id),
+    barangay_id: data.barangay_id == null ? null : Number(data.barangay_id),
+    barangay_name: String(data.barangay ?? ""),
+  };
 }
 
 export async function POST(req: NextRequest) {

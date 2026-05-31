@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { sanitizeAppUser } from "@/lib/appUserMapping";
+import { setDashboardSession } from "@/lib/dashboardSession";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 const maxFailedAttempts = 3;
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
       barangay_name: safeUser.barangay_name,
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         id: safeUser.id,
@@ -142,6 +143,8 @@ export async function POST(req: NextRequest) {
         status: safeUser.status,
       },
     });
+    setDashboardSession(response, safeUser.id);
+    return response;
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
   }

@@ -51,8 +51,8 @@ export function FloodHeatmapMap({ readings }: FloodHeatmapMapProps) {
                 <span>{reading.sensorId}</span>
                 <span>{reading.barangayName}</span>
                 {reading.street ? <span>{reading.street}</span> : null}
-                <span>Water: {formatWaterLevel(reading.waterLevelM)}</span>
-                <span>Level: {getFloodStatusLabel(reading.computedStatus, reading.waterLevelM)}</span>
+                <span>Water: <b style={{ color: tone }}>{formatWaterLevel(reading.waterLevelM)}</b></span>
+                <span>Level: <b style={{ color: tone }}>{getFloodStatusLabel(reading.computedStatus, reading.waterLevelM)}</b></span>
                 <span>Updated: {formatTimestamp(reading.createdAt)}</span>
               </div>
             </Popup>

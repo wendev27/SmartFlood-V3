@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { SmartFloodIcon, type SmartFloodIconName } from "@/components/icons/SmartFloodIcon";
+import type { DashboardUserProfile } from "@/components/layout/AppShell/AppShell";
+import { DashboardHeaderActions } from "@/components/layout/DashboardHeaderActions/DashboardHeaderActions";
 import { Badge } from "@/components/ui/Badge/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
@@ -23,9 +25,10 @@ export type MonitoringView = "main" | "alertLevels" | "heatmap" | "history";
 interface MonitoringPanelProps {
   onViewChange?: (view: MonitoringView) => void;
   resetSignal?: number;
+  userProfile: DashboardUserProfile;
 }
 
-export function MonitoringPanel({ onViewChange, resetSignal = 0 }: MonitoringPanelProps) {
+export function MonitoringPanel({ onViewChange, resetSignal = 0, userProfile }: MonitoringPanelProps) {
   const [activeView, setActiveView] = useState<MonitoringView>("main");
 
   useEffect(() => {
@@ -39,50 +42,36 @@ export function MonitoringPanel({ onViewChange, resetSignal = 0 }: MonitoringPan
   }
 
   if (activeView === "alertLevels") {
-    return <AlertLevelManagement onBack={() => changeView("main")} />;
+    return <AlertLevelManagement onBack={() => changeView("main")} userProfile={userProfile} />;
   }
 
   if (activeView === "heatmap") {
-    return <FloodHeatmap onBack={() => changeView("main")} />;
+    return <FloodHeatmap onBack={() => changeView("main")} userProfile={userProfile} />;
   }
 
   if (activeView === "history") {
-    return <FloodHistory onBack={() => changeView("main")} />;
+    return <FloodHistory onBack={() => changeView("main")} userProfile={userProfile} />;
   }
 
   return (
     <section className={styles.panel} aria-label="Flood monitoring modules">
       <div className={styles.moduleCards}>
         {monitoringModules.map((item) => (
-          <article className={styles.moduleCard} key={item.label}>
+          <button className={styles.moduleCard} key={item.label} type="button" onClick={() => item.view && changeView(item.view)}>
             <span className={styles.moduleIcon}>
               <SmartFloodIcon name={item.icon} size={40} />
             </span>
             <strong>{item.label}</strong>
             <p>{item.caption}</p>
-            {item.view === "alertLevels" ? (
-              <button className={styles.openButton} type="button" onClick={() => changeView("alertLevels")}>
-                Open <span aria-hidden="true">↗</span>
-              </button>
-            ) : item.view === "heatmap" ? (
-              <button className={styles.openButton} type="button" onClick={() => changeView("heatmap")}>
-                Open <span aria-hidden="true">↗</span>
-              </button>
-            ) : item.view === "history" ? (
-              <button className={styles.openButton} type="button" onClick={() => changeView("history")}>
-                Open <span aria-hidden="true">↗</span>
-              </button>
-            ) : (
-              <a href="#monitoring">Open <span aria-hidden="true">↗</span></a>
-            )}
-          </article>
+            <span className={styles.openText}>Open <span aria-hidden="true">↗</span></span>
+          </button>
         ))}
       </div>
     </section>
   );
 }
 
-function FloodHistory({ onBack }: { onBack: () => void }) {
+function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
   const [history, setHistory] = useState<FloodHistoryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -165,16 +154,20 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
 
   return (
     <section className={styles.historyPage} aria-label="Flood history">
-      <button className={styles.backButton} type="button" onClick={onBack}>
-        <span aria-hidden="true">←</span>
-        Back
-      </button>
-
-      <div className={styles.historyTitleRow}>
-        <h2>Flood History</h2>
-        <button className={styles.refreshHistory} type="button" onClick={() => setRefreshVersion((current) => current + 1)}>
-          {isLoading ? "Refreshing..." : "Refresh Data"}
-        </button>
+      <div className={styles.subpageHeader}>
+        <div>
+          <button className={styles.backButton} type="button" onClick={onBack}>
+            <span aria-hidden="true">←</span>
+            Back
+          </button>
+          <h2>Flood History</h2>
+        </div>
+        <div className={styles.subpageHeaderActions}>
+          <DashboardHeaderActions userProfile={userProfile} />
+          <button className={styles.refreshHistory} type="button" onClick={() => setRefreshVersion((current) => current + 1)}>
+            {isLoading ? "Refreshing..." : "Refresh Data"}
+          </button>
+        </div>
       </div>
       {error ? (
         <ErrorState title="Unable to Load Flood History" message={error} retryLabel="Retry" onRetry={() => setRefreshVersion((current) => current + 1)} />
@@ -341,7 +334,7 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
   );
 }
 
-function FloodHeatmap({ onBack }: { onBack: () => void }) {
+function FloodHeatmap({ onBack, userProfile }: MonitoringSubpageProps) {
   const [history, setHistory] = useState<FloodHistoryRow[]>([]);
   const [latestSensors, setLatestSensors] = useState<Record<string, unknown>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -394,10 +387,13 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           <h2>Flood Heatmap</h2>
           <p>Monitor flood levels and manage alerts</p>
         </div>
-        <button className={styles.reviewButton} type="button" onClick={() => setIsReportOpen(true)}>
-          <span aria-hidden="true">▣</span>
-          Review Narrative Report
-        </button>
+        <div className={styles.subpageHeaderActions}>
+          <DashboardHeaderActions userProfile={userProfile} />
+          <button className={styles.reviewButton} type="button" onClick={() => setIsReportOpen(true)}>
+            <span aria-hidden="true">▣</span>
+            Review Narrative Report
+          </button>
+        </div>
       </div>
 
       {error ? <ErrorState title="Unable to Load Flood Monitoring Data" message={error} /> : null}
@@ -435,7 +431,7 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           <span className={styles.axisLabel}>Water Level (m)</span>
           <div className={styles.barChart} style={{ gridTemplateColumns: `repeat(${Math.max(latestReadings.length, 1)}, minmax(70px, 1fr))` }}>
             {latestReadings.map((item) => (
-              <div className={styles.barSlot} key={item.sensorId} title={`${item.sensorName}: ${formatWaterLevel(item.waterLevelM)} (${item.computedStatus})`}>
+              <div className={styles.barSlot} key={item.sensorId} title={`${item.sensorName}: ${formatWaterLevel(item.waterLevelM)} (${getFloodStatusLabel(item.computedStatus, item.waterLevelM)})`}>
                 <span
                   className={`${styles.bar} ${styles[barTone(item)]}`}
                   style={{ height: `${item.waterLevelM == null ? 3 : Math.max(3, (item.waterLevelM / maxWaterLevel) * 100)}%` }}
@@ -491,9 +487,9 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           <p>{narrativeFor(latestReadings, highestReading, highestRiskBarangay)}</p>
           <dl className={styles.reportGrid}>
             <ReportDetail label="Sensor Nodes" value={latestReadings.length} />
-            <ReportDetail label="Severity" value={countRisk(latestReadings, "critical")} />
-            <ReportDetail label="Warning" value={countRisk(latestReadings, "warning")} />
-            <ReportDetail label="Alert" value={countRisk(latestReadings, "alert")} />
+            <ReportDetail label="Severity" value={countRisk(latestReadings, "severity")} />
+            <ReportDetail label="Warning" value={countRisk(latestReadings, "flood_warning")} />
+            <ReportDetail label="Alert" value={countRisk(latestReadings, "flood_alert")} />
             <ReportDetail label="Normal" value={countRisk(latestReadings, "normal")} />
             <ReportDetail label="Highest Water Level" value={highestReading ? `${highestReading.sensorName} - ${formatWaterLevel(highestReading.waterLevelM)}` : "No reading"} />
             <ReportDetail label="Highest Risk Barangay" value={highestRiskBarangay || "No reading"} />
@@ -505,15 +501,19 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
   );
 }
 
-function AlertLevelManagement({ onBack }: { onBack: () => void }) {
+function AlertLevelManagement({ onBack, userProfile }: MonitoringSubpageProps) {
   return (
     <section className={styles.alertPage} aria-label="Alert level management">
-      <button className={styles.backButton} type="button" onClick={onBack}>
-        <span aria-hidden="true">←</span>
-        Back
-      </button>
-
-      <h2>Alert Level Management</h2>
+      <div className={styles.subpageHeader}>
+        <div>
+          <button className={styles.backButton} type="button" onClick={onBack}>
+            <span aria-hidden="true">←</span>
+            Back
+          </button>
+          <h2>Alert Level Management</h2>
+        </div>
+        <DashboardHeaderActions userProfile={userProfile} />
+      </div>
 
       <article className={styles.configPanel}>
         <div className={styles.panelHeader}>
@@ -563,6 +563,11 @@ function AlertLevelManagement({ onBack }: { onBack: () => void }) {
   );
 }
 
+type MonitoringSubpageProps = {
+  onBack: () => void;
+  userProfile: DashboardUserProfile;
+};
+
 function latestFloodReadings(sensors: Record<string, unknown>[], history: FloodHistoryRow[]) {
   const latestBySensor = new Map<string, FloodHistoryRow>();
   history.forEach((reading) => {
@@ -600,9 +605,9 @@ function riskDistributionFor(readings: FloodHistoryRow[]) {
   const total = readings.length;
   const categories = [
     { label: "Normal", group: "normal", dot: "legendNormal", valueTone: "normalText" },
-    { label: "Flood Alert", group: "alert", dot: "legendAlert", valueTone: "alertText" },
-    { label: "Flood Warning", group: "warning", dot: "legendWarning", valueTone: "warningText" },
-    { label: "Severity", group: "critical", dot: "legendCritical", valueTone: "criticalText" },
+    { label: "Flood Alert", group: "flood_alert", dot: "legendAlert", valueTone: "alertText" },
+    { label: "Flood Warning", group: "flood_warning", dot: "legendWarning", valueTone: "warningText" },
+    { label: "Severity", group: "severity", dot: "legendCritical", valueTone: "criticalText" },
     { label: "No reading", group: "no_reading", dot: "legendNoReading", valueTone: "noReadingText" },
   ];
 
@@ -627,9 +632,9 @@ function distributionGradient(distribution: ReturnType<typeof riskDistributionFo
 
 function barTone(reading: FloodHistoryRow) {
   const group = riskGroup(reading);
-  if (group === "critical") return "criticalBar";
-  if (group === "warning") return "warningBar";
-  if (group === "alert") return "alertBar";
+  if (group === "severity") return "criticalBar";
+  if (group === "flood_warning") return "warningBar";
+  if (group === "flood_alert") return "alertBar";
   if (group === "normal") return "normalBar";
   return "noReadingBar";
 }
@@ -643,7 +648,7 @@ function countRisk(readings: FloodHistoryRow[], group: string) {
 }
 
 function highestRiskBarangayFor(readings: FloodHistoryRow[]) {
-  const rank = { no_reading: 0, normal: 1, warning: 2, critical: 3 };
+  const rank = { no_reading: 0, normal: 1, flood_alert: 2, flood_warning: 3, severity: 4 };
   return readings.reduce<{ name: string; rank: number } | null>((highest, reading) => {
     const readingRank = rank[riskGroup(reading) as keyof typeof rank];
     return !highest || readingRank > highest.rank ? { name: reading.barangayName, rank: readingRank } : highest;
@@ -654,10 +659,10 @@ function narrativeFor(readings: FloodHistoryRow[], highest: FloodHistoryRow | nu
   if (readings.length === 0) return "No flood readings available yet.";
   if (!highest) return `Based on the latest sensor status, ${readings.length} sensor nodes are registered but no water-level readings are available yet.`;
 
-  const critical = countRisk(readings, "critical");
-  const warning = countRisk(readings, "warning");
-  const alert = countRisk(readings, "alert");
-  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${critical} severity, ${warning} warning, and ${alert} alert sensor readings. Immediate monitoring is recommended.`;
+  const severity = countRisk(readings, "severity");
+  const warning = countRisk(readings, "flood_warning");
+  const alert = countRisk(readings, "flood_alert");
+  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${severity} severity, ${warning} warning, and ${alert} alert sensor readings. Immediate monitoring is recommended.`;
 }
 
 function formatWaterLevel(value: number | null) {
@@ -901,7 +906,7 @@ const alertLevels = [
     tone: "warning",
   },
   {
-    name: "Severe Flood Warning",
+    name: "Severity",
     range: "1.20m - 1.50m",
     action: "Suggested Automated Action",
     note: "Chest-deep, forced evacuation",
@@ -911,9 +916,9 @@ const alertLevels = [
 
 const recentActivity = [
   {
-    title: "Severe Flood Warning triggered at Barangay Tanong",
+    title: "Severity triggered at Barangay Tanong",
     meta: "Water level: 1.35m · 2 minutes ago",
-    badge: "Severe Flood Warning",
+    badge: "Severity",
     tone: "critical",
   },
   {

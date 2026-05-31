@@ -13,15 +13,15 @@
   width: 18px;
 }
 
-.critical {
+.severity {
   background: #ff3040;
 }
 
-.warning {
+.flood_warning {
   background: #ff7417;
 }
 
-.alert {
+.flood_alert {
   background: #f7bd00;
 }
 
@@ -29,7 +29,7 @@
   background: #17a34a;
 }
 
-.offline {
+.no_reading {
   background: #94a3b8;
 }
 

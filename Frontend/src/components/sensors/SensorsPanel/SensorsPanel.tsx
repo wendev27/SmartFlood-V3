@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
-import { getFloodBadgeTone, getFloodStatusLabel } from "@/lib/statusStyles";
+import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel, type FloodLevel } from "@/lib/statusStyles";
 import { getSensors } from "@/services/sensorsService";
 import styles from "./SensorsPanel.module.css";
 
@@ -20,6 +20,7 @@ type SensorRow = {
   status: "Active" | "Inactive" | "Offline";
   latestReading: string;
   level: string;
+  floodLevel: FloodLevel;
   hasCoordinates: boolean;
 };
 
@@ -166,7 +167,7 @@ export function SensorsPanel() {
             {displayedSensors.map((sensor, index) => (
               <tr
                 aria-selected={selectedSensorId === sensor.sensor_key}
-                className={`${styles.clickableRow} ${selectedSensorId === sensor.sensor_key ? styles.selectedRow : ""}`}
+                className={`${styles.clickableRow} ${selectedSensorId === sensor.sensor_key ? `${styles.selectedRow} ${styles[sensor.floodLevel]}` : ""}`}
                 key={sensor.sensor_key || `${sensor.barangay}-${index}`}
                 onClick={() => selectSensor(sensor)}
                 onKeyDown={(event) => {
@@ -181,7 +182,7 @@ export function SensorsPanel() {
                 <td>{sensor.barangay}</td>
                 <td>{sensor.coordinates}</td>
                 <td><Badge tone={sensor.status === "Active" ? "green" : sensor.status === "Inactive" ? "yellow" : "red"}>{sensor.status}</Badge></td>
-                <td>{sensor.latestReading}</td>
+                <td><strong className={styles[sensor.floodLevel]}>{sensor.latestReading}</strong></td>
                 <td><Badge tone={getFloodBadgeTone(sensor.level)}>{sensor.level}</Badge></td>
               </tr>
             ))}
@@ -215,6 +216,7 @@ function mapSensor(row: Record<string, unknown>, index: number): SensorRow {
   const computedStatus = String(row.computedStatus ?? "").toLowerCase();
   const rawStatus = String(row.status ?? "offline").toLowerCase();
   const sensorId = String(row.sensorId ?? row.sensor_id ?? row._id ?? "");
+  const floodLevel = getFloodStatusClass(computedStatus, waterLevel);
 
   return {
     sensor_key: sensorKey(row, index),
@@ -224,6 +226,7 @@ function mapSensor(row: Record<string, unknown>, index: number): SensorRow {
     status: rawStatus === "active" ? "Active" : rawStatus === "inactive" || rawStatus === "degraded" ? "Inactive" : "Offline",
     latestReading: waterLevel == null ? "No reading" : `${waterLevel.toFixed(2)}m`,
     level: getFloodStatusLabel(computedStatus, waterLevel),
+    floodLevel,
     hasCoordinates: Boolean(resolveSensorCoordinates(row)),
   };
 }
