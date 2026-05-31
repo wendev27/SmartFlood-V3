@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search");
     let query = supabaseServer
       .from("families")
-      .select("family_id,family_name,family_head_id,family_head_name,barangay_id,barangay_name,street,complete_address,pwd_count,elderly_count,four_ps_count,lactating_count,pregnant_count,infant_count,toddler_count,no_children,total_family_members,created_at,updated_at")
+      .select("family_id,family_name,family_head_id,family_head_name,barangay_id,barangay_name,street,complete_address,pwd_count,elderly_count,four_ps_count,lactating_count,pregnant_count,infant_count,toddler_count,total_family_members,created_at,updated_at")
       .order("created_at", { ascending: false });
 
     if (barangay_id) query = query.eq("barangay_id", barangay_id);

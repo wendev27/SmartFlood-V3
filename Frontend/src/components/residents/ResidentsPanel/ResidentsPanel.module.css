@@ -85,6 +85,32 @@
   color: #7a8798;
 }
 
+.modalSearchField {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #d9e1ec;
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  min-height: 40px;
+  margin-bottom: 12px;
+  padding: 0 13px;
+}
+
+.modalSearchField:focus-within {
+  border-color: #83b7ff;
+  box-shadow: 0 0 0 3px rgba(21, 93, 255, 0.12);
+}
+
+.modalSearchField input {
+  border: 0;
+  color: #1e293b;
+  font-size: 12px;
+  min-width: 0;
+  outline: 0;
+  width: 100%;
+}
+
 .searchIcon {
   border: 2px solid #9aa9bb;
   border-radius: 50%;
@@ -384,18 +410,6 @@
   box-shadow: 0 0 0 3px rgba(21, 93, 255, 0.12);
 }
 
-.noChildren {
-  align-items: center;
-  display: inline-flex;
-  flex-direction: row;
-  gap: 8px;
-}
-
-.noChildren input {
-  min-height: auto;
-  width: auto;
-}
-
 .checkboxLabel {
   align-items: center;
   align-self: end;
@@ -448,17 +462,6 @@
   font-size: 11px;
   font-weight: 800;
   margin: 0 0 14px;
-}
-
-.noChildren {
-  background: #eff6ff;
-  border-radius: 8px;
-  color: #111827;
-  font-size: 11px;
-  font-weight: 700;
-  margin-top: 14px;
-  padding: 12px 14px;
-  width: 100%;
 }
 
 .formActions {

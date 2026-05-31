@@ -22,10 +22,16 @@ export type MonitoringView = "main" | "alertLevels" | "heatmap" | "history";
 
 interface MonitoringPanelProps {
   onViewChange?: (view: MonitoringView) => void;
+  resetSignal?: number;
 }
 
-export function MonitoringPanel({ onViewChange }: MonitoringPanelProps) {
+export function MonitoringPanel({ onViewChange, resetSignal = 0 }: MonitoringPanelProps) {
   const [activeView, setActiveView] = useState<MonitoringView>("main");
+
+  useEffect(() => {
+    setActiveView("main");
+    onViewChange?.("main");
+  }, [onViewChange, resetSignal]);
 
   function changeView(view: MonitoringView) {
     setActiveView(view);
@@ -220,7 +226,7 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
                 <option value="Normal">Normal</option>
                 <option value="Flood Alert">Flood Alert</option>
                 <option value="Flood Warning">Flood Warning</option>
-                <option value="Critical">Critical</option>
+                <option value="Severity">Severity</option>
                 <option value="No reading">No reading</option>
               </select>
             </label>
@@ -240,7 +246,7 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
           <div className={styles.historySummary}>
             <HistoryMetric label="Total Records" value={filteredHistory.length} />
             <HistoryMetric label="Highest Water Level" value={`${highestWaterLevel.toFixed(2)}m`} />
-            <HistoryMetric label="Critical Count" value={countHistorySeverity(filteredHistory, "Critical")} />
+            <HistoryMetric label="Severity Count" value={countHistorySeverity(filteredHistory, "Severity")} />
             <HistoryMetric label="Warning Count" value={countHistorySeverity(filteredHistory, "Flood Warning")} />
             <HistoryMetric label="Latest Reading" value={formatTimestamp(latestReadingTime)} />
           </div>
@@ -407,7 +413,7 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
             <span><i className={styles.legendNormal} />Normal</span>
             <span><i className={styles.legendAlert} />Flood Alert</span>
             <span><i className={styles.legendWarning} />Flood Warning</span>
-            <span><i className={styles.legendCritical} />Critical</span>
+            <span><i className={styles.legendCritical} />Severity</span>
             <span><i className={styles.legendNoReading} />No reading</span>
           </div>
         </div>
@@ -448,7 +454,7 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           <span><i className={styles.legendNormal} />Normal</span>
           <span><i className={styles.legendAlert} />Flood Alert</span>
           <span><i className={styles.legendWarning} />Flood Warning</span>
-          <span><i className={styles.legendCritical} />Critical</span>
+          <span><i className={styles.legendCritical} />Severity</span>
           <span><i className={styles.legendNoReading} />No reading</span>
         </div>
       </article>
@@ -485,7 +491,7 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           <p>{narrativeFor(latestReadings, highestReading, highestRiskBarangay)}</p>
           <dl className={styles.reportGrid}>
             <ReportDetail label="Sensor Nodes" value={latestReadings.length} />
-            <ReportDetail label="Critical" value={countRisk(latestReadings, "critical")} />
+            <ReportDetail label="Severity" value={countRisk(latestReadings, "critical")} />
             <ReportDetail label="Warning" value={countRisk(latestReadings, "warning")} />
             <ReportDetail label="Alert" value={countRisk(latestReadings, "alert")} />
             <ReportDetail label="Normal" value={countRisk(latestReadings, "normal")} />
@@ -515,10 +521,6 @@ function AlertLevelManagement({ onBack }: { onBack: () => void }) {
             <h3>Alert Level Configuration</h3>
             <p>Manage flood alert thresholds and automated actions</p>
           </div>
-          <button className={styles.addButton} type="button">
-            <span aria-hidden="true">+</span>
-            Add New Alert Level
-          </button>
         </div>
 
         <div className={styles.alertCards}>
@@ -535,12 +537,6 @@ function AlertLevelManagement({ onBack }: { onBack: () => void }) {
               </div>
               <p>{level.action}</p>
               <span className={styles.levelNote}>{level.note}</span>
-              <div className={styles.cardActions}>
-                <button className={styles.editButton} type="button">
-                  <span aria-hidden="true">/</span>
-                  Edit
-                </button>
-              </div>
             </section>
           ))}
         </div>
@@ -606,7 +602,7 @@ function riskDistributionFor(readings: FloodHistoryRow[]) {
     { label: "Normal", group: "normal", dot: "legendNormal", valueTone: "normalText" },
     { label: "Flood Alert", group: "alert", dot: "legendAlert", valueTone: "alertText" },
     { label: "Flood Warning", group: "warning", dot: "legendWarning", valueTone: "warningText" },
-    { label: "Critical", group: "critical", dot: "legendCritical", valueTone: "criticalText" },
+    { label: "Severity", group: "critical", dot: "legendCritical", valueTone: "criticalText" },
     { label: "No reading", group: "no_reading", dot: "legendNoReading", valueTone: "noReadingText" },
   ];
 
@@ -661,7 +657,7 @@ function narrativeFor(readings: FloodHistoryRow[], highest: FloodHistoryRow | nu
   const critical = countRisk(readings, "critical");
   const warning = countRisk(readings, "warning");
   const alert = countRisk(readings, "alert");
-  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${critical} critical, ${warning} warning, and ${alert} alert sensor readings. Immediate monitoring is recommended.`;
+  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${critical} severity, ${warning} warning, and ${alert} alert sensor readings. Immediate monitoring is recommended.`;
 }
 
 function formatWaterLevel(value: number | null) {
@@ -677,7 +673,7 @@ function formatTimestamp(value: string | null) {
 
 type HistoryRange = "today" | "last7" | "last28" | "month" | "custom";
 type HistoryGroup = "hourly" | "daily" | "weekly" | "monthly" | "yearly";
-type HistorySeverity = "Normal" | "Flood Alert" | "Flood Warning" | "Critical" | "No reading";
+type HistorySeverity = "Normal" | "Flood Alert" | "Flood Warning" | "Severity" | "No reading";
 type HistoryChartGroup = {
   key: string;
   label: string;
@@ -828,7 +824,7 @@ function SeverityBadge({ level }: { level: HistorySeverity }) {
 }
 
 function severityPointClass(level: HistorySeverity) {
-  if (level === "Critical") return "pointCritical";
+  if (level === "Severity") return "pointCritical";
   if (level === "Flood Warning") return "pointWarning";
   if (level === "Flood Alert") return "pointAlert";
   if (level === "No reading") return "pointNoReading";
@@ -917,7 +913,7 @@ const recentActivity = [
   {
     title: "Severe Flood Warning triggered at Barangay Tanong",
     meta: "Water level: 1.35m · 2 minutes ago",
-    badge: "Severe",
+    badge: "Severe Flood Warning",
     tone: "critical",
   },
   {

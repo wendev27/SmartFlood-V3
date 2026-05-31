@@ -32,13 +32,19 @@ function getPageFromHash(hash: string): PageKey {
 export default function DashboardPage() {
   const [activePage, setActivePage] = useState<PageKey>("dashboard");
   const [monitoringView, setMonitoringView] = useState<MonitoringView>("main");
+  const [monitoringResetVersion, setMonitoringResetVersion] = useState(0);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   useEffect(() => {
     setActivePage(getPageFromHash(window.location.hash));
 
     const handleHashChange = () => {
-      setActivePage(getPageFromHash(window.location.hash));
+      const nextPage = getPageFromHash(window.location.hash);
+      setActivePage(nextPage);
+      if (nextPage === "monitoring") {
+        setMonitoringView("main");
+        setMonitoringResetVersion((version) => version + 1);
+      }
     };
 
     window.addEventListener("hashchange", handleHashChange);
@@ -48,6 +54,9 @@ export default function DashboardPage() {
   function handleNavigate(page: PageKey) {
     setActivePage(page);
     setMonitoringView("main");
+    if (page === "monitoring") {
+      setMonitoringResetVersion((version) => version + 1);
+    }
     setIsMobileNavOpen(false);
     window.history.replaceState(null, "", `#${page}`);
   }
@@ -63,7 +72,7 @@ export default function DashboardPage() {
       {activePage === "dashboard" ? <DashboardPanel /> : null}
       {activePage === "logs" ? <LogsPanel /> : null}
       {activePage === "systemLogs" ? <SystemLogs /> : null}
-      {activePage === "monitoring" ? <MonitoringPanel onViewChange={setMonitoringView} /> : null}
+      {activePage === "monitoring" ? <MonitoringPanel resetSignal={monitoringResetVersion} onViewChange={setMonitoringView} /> : null}
       {activePage === "relief" ? <ReliefPanel /> : null}
       {activePage === "sensors" ? <SensorsPanel /> : null}
       {activePage === "residents" ? <ResidentsPanel /> : null}

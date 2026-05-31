@@ -316,7 +316,7 @@ function allocateInventory(scored: ScoredBarangay[], available: number, needFor:
 }
 
 function riskLabel(riskLevel: string) {
-  if (riskLevel === "critical") return "Critical";
+  if (riskLevel === "critical") return "Severity";
   if (riskLevel === "warning") return "Flood warning";
   if (riskLevel === "no_reading") return "No reading";
   return "Normal";

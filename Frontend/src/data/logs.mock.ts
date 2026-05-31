@@ -74,7 +74,7 @@ export const auditLogsMock: AuditLog[] = [
     timestamp: "2026-05-10 10:30:52",
     user: "Higinio Gracia",
     action: "Changed threshold from 4m to 4.5m",
-    description: "Higinio Gracia updated Critical Alert",
+    description: "Higinio Gracia updated Severity Alert",
     category: "System",
     department: "CDRRMO",
     status: "Success",

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { pickResidentPayload } from "@/lib/residentPayload";
+import { fullName, pickResidentPayload } from "@/lib/residentPayload";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 const allowedPatchFields = new Set([
@@ -17,6 +17,13 @@ const allowedPatchFields = new Set([
   "is_family_head",
   "family_id",
   "status",
+  "pwd_count",
+  "elderly_count",
+  "four_ps_count",
+  "lactating_count",
+  "pregnant_count",
+  "infant_count",
+  "toddler_count",
 ]);
 
 type RouteContext = {
@@ -27,6 +34,19 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const body = await req.json();
+
+    if (!body.last_name || !body.first_name || !body.complete_address || !body.barangay_id || !body.barangay_name) {
+      return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
+    }
+
+    const { data: existingResident, error: existingError } = await supabaseServer
+      .from("residents_v3")
+      .select("*")
+      .eq("resident_id", id)
+      .single();
+
+    if (existingError) return NextResponse.json({ success: false, error: existingError.message }, { status: 500 });
+
     const allowedBody = Object.fromEntries(
       Object.entries(body).filter(([key]) => allowedPatchFields.has(key)),
     );
@@ -36,7 +56,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: "No allowed fields to update" }, { status: 400 });
     }
 
-    const { data, error } = await supabaseServer
+    const { data: resident, error } = await supabaseServer
       .from("residents_v3")
       .update(payload)
       .eq("resident_id", id)
@@ -44,7 +64,40 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       .single();
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, data });
+
+    const isFamilyHead = Boolean(body.is_family_head);
+    const familyId = resident.family_id ?? existingResident.family_id ?? body.family_id;
+
+    if (!isFamilyHead || !familyId) {
+      return NextResponse.json({ success: true, data: { resident } });
+    }
+
+    const familyPayload = {
+      family_head_name: fullName(body),
+      barangay_id: body.barangay_id,
+      barangay_name: body.barangay_name,
+      street: body.street ?? "",
+      complete_address: body.complete_address,
+      pwd_count: Number(body.pwd_count ?? 0),
+      elderly_count: Number(body.elderly_count ?? 0),
+      four_ps_count: Number(body.four_ps_count ?? 0),
+      lactating_count: Number(body.lactating_count ?? 0),
+      pregnant_count: Number(body.pregnant_count ?? 0),
+      infant_count: Number(body.infant_count ?? 0),
+      toddler_count: Number(body.toddler_count ?? 0),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: family, error: familyError } = await supabaseServer
+      .from("families")
+      .update(familyPayload)
+      .eq("family_id", familyId)
+      .select()
+      .single();
+
+    if (familyError) return NextResponse.json({ success: false, error: familyError.message }, { status: 500 });
+
+    return NextResponse.json({ success: true, data: { resident, family } });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }

@@ -51,7 +51,6 @@ export function familyVulnerabilityPayload(source: ResidentSource) {
     pregnant_count: Number(source.pregnant_count ?? 0),
     infant_count: Number(source.infant_count ?? 0),
     toddler_count: Number(source.toddler_count ?? 0),
-    no_children: Boolean(source.no_children ?? false),
     total_family_members: Number(source.total_family_members ?? 1),
   };
 }

@@ -44,7 +44,6 @@ type FamilyRow = {
   pregnant: number;
   infant: number;
   toddler: number;
-  noChildren: boolean;
   totalFamilyMembers: number;
 };
 
@@ -69,7 +68,6 @@ type ResidentFormState = {
   pregnant_count: string;
   infant_count: string;
   toddler_count: string;
-  no_children: boolean;
 };
 
 const barangays = [
@@ -99,8 +97,17 @@ const emptyResidentForm: ResidentFormState = {
   pregnant_count: "0",
   infant_count: "0",
   toddler_count: "0",
-  no_children: false,
 };
+
+const vulnerabilityCountFields = [
+  "pwd_count",
+  "elderly_count",
+  "four_ps_count",
+  "lactating_count",
+  "pregnant_count",
+  "infant_count",
+  "toddler_count",
+] as const;
 
 export function ResidentsPanel() {
   const [residents, setResidents] = useState<ResidentRow[]>([]);
@@ -242,6 +249,7 @@ export function ResidentsPanel() {
 
   function openEditResident(resident: ResidentRow) {
     const normalizedBarangay = normalizeBarangay(resident.barangay ?? "", resident.barangay_id ? String(resident.barangay_id) : "");
+    const family = familyClusters.find((cluster) => cluster.family_id === resident.family_id);
     setResidentModalMode("edit");
     setEditingResidentId(resident.resident_id ?? null);
     setResidentForm({
@@ -259,6 +267,13 @@ export function ResidentsPanel() {
       barangay_name: normalizedBarangay?.name ?? resident.barangay ?? "",
       is_family_head: Boolean(resident.is_family_head),
       selected_family_id: resident.family_id ?? "",
+      pwd_count: String(family?.pwd ?? 0),
+      elderly_count: String(family?.elderly ?? 0),
+      four_ps_count: String(family?.fourPs ?? 0),
+      lactating_count: String(family?.lactating ?? 0),
+      pregnant_count: String(family?.pregnant ?? 0),
+      infant_count: String(family?.infant ?? 0),
+      toddler_count: String(family?.toddler ?? 0),
     });
     setFormError("");
     setIsResidentModalOpen(true);
@@ -291,8 +306,13 @@ export function ResidentsPanel() {
     setFormError("");
 
     const normalizedBarangay = normalizeBarangay(residentForm.barangay_name, residentForm.barangay_id);
-    if (!residentForm.last_name.trim() || !residentForm.first_name.trim() || !residentForm.complete_address.trim() || !normalizedBarangay) {
-      setFormError("Last name, first name, complete address, and barangay are required.");
+    const validationError = validateResidentForm(residentForm, normalizedBarangay);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+    if (!normalizedBarangay) {
+      setFormError("Barangay is required.");
       return;
     }
 
@@ -546,11 +566,23 @@ export function ResidentsPanel() {
               </label>
               <label>
                 Sex
-                <input value={residentForm.sex} onChange={(event) => updateForm("sex", event.target.value)} placeholder="e.g., Male" />
+                <select value={residentForm.sex} onChange={(event) => updateForm("sex", event.target.value)}>
+                  <option value="">Select sex</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
               </label>
               <label>
                 Contact Number
-                <input value={residentForm.contact_number} onChange={(event) => updateForm("contact_number", event.target.value)} placeholder="e.g., 0912-345-6789" />
+                <input
+                  value={residentForm.contact_number}
+                  onBlur={() => {
+                    const normalized = normalizePhilippineMobile(residentForm.contact_number);
+                    if (normalized) updateForm("contact_number", normalized);
+                  }}
+                  onChange={(event) => updateForm("contact_number", event.target.value)}
+                  placeholder="e.g., 0912-345-6789"
+                />
               </label>
               <label className={styles.checkboxLabel}>
                 <input
@@ -598,18 +630,19 @@ export function ResidentsPanel() {
                 <CountField label="Number of Infant" value={residentForm.infant_count} onChange={(value) => updateForm("infant_count", value)} />
                 <CountField label="Number of Toddler" value={residentForm.toddler_count} onChange={(value) => updateForm("toddler_count", value)} />
               </div>
-              <label className={styles.noChildren}>
-                <input
-                  checked={residentForm.no_children}
-                  type="checkbox"
-                  onChange={(event) => updateForm("no_children", event.target.checked)}
-                />
-                No Children
-              </label>
             </section>
           ) : (
             <section className={styles.formSection}>
               <h3><span aria-hidden="true" />Family Cluster</h3>
+              <label className={styles.modalSearchField}>
+                <span className={styles.searchIcon} aria-hidden="true" />
+                <input
+                  aria-label="Search family clusters"
+                  value={familySearch}
+                  onChange={(event) => setFamilySearch(event.target.value)}
+                  placeholder="Search family name, head, barangay, or address..."
+                />
+              </label>
               <div className={styles.wrap}>
                 <table className={styles.table}>
                   <thead>
@@ -621,7 +654,7 @@ export function ResidentsPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {familyClusters.map((family, index) => (
+                    {displayedFamilies.map((family, index) => (
                       <tr
                         key={family.family_id || `${family.familyName}-${index}`}
                         className={cn(residentForm.selected_family_id === family.family_id && styles.selected)}
@@ -641,12 +674,12 @@ export function ResidentsPanel() {
                         <td colSpan={4}><LoadingState message="Loading family clusters..." /></td>
                       </tr>
                     ) : null}
-                    {!isFamiliesLoading && familyClusters.length === 0 ? (
+                    {!isFamiliesLoading && displayedFamilies.length === 0 ? (
                       <tr>
                         <td colSpan={4}>
                           <EmptyState
-                            title="No family clusters found"
-                            description="Create a family head resident first before linking family members."
+                            title={familyClusters.length === 0 ? "No family clusters found" : "No family clusters match your search"}
+                            description={familyClusters.length === 0 ? "Create a family head resident first before linking family members." : "Try another family name, head, barangay, ID, or address."}
                           />
                         </td>
                       </tr>
@@ -699,7 +732,6 @@ export function ResidentsPanel() {
                   <Detail label="Pregnant" value={selectedFamily.pregnant} />
                   <Detail label="Infant" value={selectedFamily.infant} />
                   <Detail label="Toddler" value={selectedFamily.toddler} />
-                  <Detail label="No Children" value={selectedFamily.noChildren ? "Yes" : "No"} />
                 </dl>
               </section>
               <section className={styles.detailsSection}>
@@ -797,7 +829,6 @@ function mapFamily(row: Record<string, unknown>): FamilyRow {
     pregnant: Number(row.pregnant_count ?? 0),
     infant: Number(row.infant_count ?? 0),
     toddler: Number(row.toddler_count ?? 0),
-    noChildren: Boolean(row.no_children),
     totalFamilyMembers: Number(row.total_family_members ?? 0),
   };
 }
@@ -841,6 +872,43 @@ function normalizeWholeNumberInput(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? String(Math.floor(parsed)) : "0";
 }
 
+function validateResidentForm(form: ResidentFormState, barangay: { id: string; name: string } | undefined) {
+  if (!isValidPersonName(form.last_name)) return "Last name is required and can only contain letters, spaces, apostrophes, hyphens, and periods.";
+  if (!isValidPersonName(form.first_name)) return "First name is required and can only contain letters, spaces, apostrophes, hyphens, and periods.";
+  if (form.middle_name.trim() && !isValidPersonName(form.middle_name)) return "Middle name can only contain letters, spaces, apostrophes, hyphens, and periods.";
+  if (form.suffix.trim() && !/^[A-Za-z0-9 .'-]{1,12}$/.test(form.suffix.trim())) return "Suffix can only contain letters, numbers, spaces, apostrophes, hyphens, and periods.";
+  if (!form.age.trim()) return "Age is required.";
+  const age = Number(form.age);
+  if (!Number.isInteger(age) || age < 0 || age > 120) return "Age must be a whole number from 0 to 120.";
+  if (form.sex !== "Male" && form.sex !== "Female") return "Sex must be Male or Female.";
+  if (!normalizePhilippineMobile(form.contact_number)) return "Contact number must be a valid Philippine mobile number like +639123456789.";
+  if (!form.complete_address.trim()) return "Complete address is required.";
+  if (!barangay) return "Barangay is required.";
+  if (form.is_family_head) {
+    const invalidCount = vulnerabilityCountFields.some((field) => !isValidCount(form[field]));
+    if (invalidCount) return "Vulnerability counts must be whole numbers from 0 to 999.";
+  }
+  return "";
+}
+
+function isValidPersonName(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 60 && /^[A-Za-z .'-]+$/.test(trimmed);
+}
+
+function isValidCount(value: string) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 999;
+}
+
+function normalizePhilippineMobile(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (/^09\d{9}$/.test(digits)) return `+63${digits.slice(1)}`;
+  if (/^639\d{9}$/.test(digits)) return `+${digits}`;
+  if (/^9\d{9}$/.test(digits)) return `+63${digits}`;
+  return "";
+}
+
 function normalizeBarangay(barangayName: string, barangayId: string) {
   const selected = barangays.find((barangay) => barangay.id === barangayId);
   if (selected) return selected;
@@ -857,7 +925,7 @@ function buildResidentPayload(form: ResidentFormState, barangay: { id: string; n
     suffix: form.suffix.trim(),
     age: form.age ? Number(form.age) : null,
     sex: form.sex.trim(),
-    contact_number: form.contact_number.trim(),
+    contact_number: normalizePhilippineMobile(form.contact_number),
     complete_address: form.complete_address.trim(),
     street: form.street.trim(),
     barangay_id: Number(barangay.id),
@@ -880,6 +948,5 @@ function buildResidentPayload(form: ResidentFormState, barangay: { id: string; n
     pregnant_count: Number(form.pregnant_count || 0),
     infant_count: Number(form.infant_count || 0),
     toddler_count: Number(form.toddler_count || 0),
-    no_children: form.no_children,
   };
 }
