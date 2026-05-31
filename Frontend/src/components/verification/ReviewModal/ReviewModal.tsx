@@ -1,5 +1,6 @@
 import { Modal } from "@/components/ui/Modal/Modal";
 import { Button } from "@/components/ui/Button/Button";
+import { Badge } from "@/components/ui/Badge/Badge";
 import type { VerificationApplication } from "@/types/verification";
 import styles from "./ReviewModal.module.css";
 
@@ -13,12 +14,32 @@ interface ReviewModalProps {
 
 export function ReviewModal({ isOpen, application, onApprove, onReject, onClose }: ReviewModalProps) {
   const raw = application?.raw ?? {};
+  const status = application?.status ?? "pending";
+  const isPending = status === "pending";
+  const reviewedAt = String(raw.reviewed_at ?? "");
+  const reviewedBy = String(raw.reviewed_by ?? "");
+  const reviewNotes = String(raw.admin_review_notes ?? "");
+  const title = isPending
+    ? "Review Resident Application"
+    : status === "approved"
+      ? "Approved Resident Application"
+      : "Rejected Resident Application";
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} labelledBy="review-title">
       <header className={styles.header}>
         <div className={styles.avatar}>{application?.initials ?? "NA"}</div>
-        <div><h2 id="review-title">{application?.name ?? "Application"}</h2><p>Resident Registration</p></div>
+        <div className={styles.titleBlock}>
+          <div className={styles.titleRow}>
+            <h2 id="review-title">{title}</h2>
+            {application ? (
+              <Badge tone={status === "approved" ? "green" : status === "rejected" ? "red" : "blue"}>
+                {capitalize(status)}
+              </Badge>
+            ) : null}
+          </div>
+          <p>{application?.name ?? "Application"} · Resident Registration</p>
+        </div>
         <button className={styles.close} type="button" aria-label="Close review" onClick={onClose} />
       </header>
       <div className={styles.body}>
@@ -35,9 +56,23 @@ export function ReviewModal({ isOpen, application, onApprove, onReject, onClose 
         <ReviewSection title="Submission Details" columns={2} fields={[
           ["Date Submitted", application?.submitted ?? ""], ["Submitted By", String(raw.source ?? "Self-registered")],
         ]} />
+        {!isPending ? (
+          <ReviewSection title="Review Details" columns={3} fields={[
+            ["Status", capitalize(status)],
+            ["Reviewed At", reviewedAt || "N/A"],
+            ["Reviewed By", reviewedBy || "N/A"],
+            ["Review Notes", reviewNotes || "N/A"],
+          ]} />
+        ) : null}
         <footer className={styles.actions}>
-          <Button tone="danger" onClick={onReject}>⊗ Reject Application</Button>
-          <Button tone="success" onClick={onApprove}>✓ Approve Application</Button>
+          {isPending ? (
+            <>
+              <Button tone="danger" onClick={onReject}>⊗ Reject Application</Button>
+              <Button tone="success" onClick={onApprove}>✓ Approve Application</Button>
+            </>
+          ) : (
+            <Button onClick={onClose}>Close</Button>
+          )}
         </footer>
       </div>
     </Modal>
@@ -64,4 +99,8 @@ function ReviewSection({ title, fields, columns = 1 }: ReviewSectionProps) {
       </div>
     </section>
   );
+}
+
+function capitalize(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }

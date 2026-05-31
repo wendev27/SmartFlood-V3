@@ -1,17 +1,16 @@
 .panel {
-  height: calc(100dvh - 280px);
-  min-height: 0;
-  overflow: hidden;
+  min-height: calc(100dvh - 280px);
+  overflow: visible;
   padding-top: 0;
 }
 
 .scrollArea {
   display: grid;
   gap: 26px;
-  grid-template-rows: minmax(0, 1.08fr) minmax(0, 1fr);
-  height: 100%;
+  grid-template-rows: none;
+  height: auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .card {
@@ -21,7 +20,7 @@
   box-shadow: 0 14px 23px rgba(15, 23, 42, 0.12);
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: 360px;
   overflow: hidden;
 }
 
@@ -126,7 +125,8 @@
 
 .wrap {
   flex: 1 1 auto;
-  min-height: 0;
+  max-height: clamp(320px, 42vh, 560px);
+  min-height: 260px;
   overflow: auto;
   scrollbar-color: #9bc9ff transparent;
   scrollbar-width: thin;
@@ -384,7 +384,6 @@
   box-shadow: 0 0 0 3px rgba(21, 93, 255, 0.12);
 }
 
-.checkboxLabel,
 .noChildren {
   align-items: center;
   display: inline-flex;
@@ -392,10 +391,52 @@
   gap: 8px;
 }
 
-.checkboxLabel input,
 .noChildren input {
   min-height: auto;
   width: auto;
+}
+
+.checkboxLabel {
+  align-items: center;
+  align-self: end;
+  background: #f8fbff;
+  border: 1px solid #d9e8ff;
+  border-radius: 8px;
+  color: #111827;
+  cursor: pointer;
+  display: inline-flex;
+  flex-direction: row;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.checkboxLabel:hover,
+.checkboxLabel:focus-within {
+  background: #eef6ff;
+  border-color: #83b7ff;
+  box-shadow: 0 0 0 3px rgba(21, 93, 255, 0.1);
+}
+
+.checkboxLabel input {
+  accent-color: #0966ff;
+  cursor: pointer;
+  flex: 0 0 auto;
+  height: 16px;
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+  width: 16px;
+}
+
+.checkboxLabel span {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .wideField {
@@ -428,7 +469,7 @@
 
 @media (min-width: 700px) {
   .panel {
-    height: calc(100dvh - 220px);
+    min-height: calc(100dvh - 220px);
   }
 
   .toolbar {
@@ -455,11 +496,12 @@
 
 @media (min-width: 900px) {
   .panel {
-    height: calc(100dvh - 194px);
+    min-height: calc(100dvh - 194px);
   }
 
   .scrollArea {
     gap: 22px;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .cardBody {

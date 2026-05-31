@@ -20,6 +20,10 @@ export async function saveReliefInventory(payload: Record<string, unknown>) {
   });
 }
 
-export async function generateReliefRecommendations() {
-  return fetchJson<Record<string, unknown>[]>("/api/ai/recommendations/generate", { method: "POST" });
+export async function generateReliefRecommendations(payload: Record<string, number>) {
+  return fetchJson<Record<string, unknown>[]>("/api/ai/recommendations/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }

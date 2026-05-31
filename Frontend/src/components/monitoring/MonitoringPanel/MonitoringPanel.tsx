@@ -142,7 +142,7 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
   const timeline = useMemo(() => groupHistory(filteredHistory, groupBy), [filteredHistory, groupBy]);
   const timelineMax = Math.max(1, ...timeline.map((group) => group.maxLevel));
   const chartPoints = timelinePoints(timeline, timelineMax);
-  const timelineLabels = timeline.filter((_, index) => index % Math.max(1, Math.ceil(timeline.length / 8)) === 0);
+  const timelineLabels = useMemo(() => timelineTickLabels(timeline), [timeline]);
   const highestWaterLevel = Math.max(0, ...filteredHistory.map((reading) => reading.waterLevelM ?? 0));
   const latestReadingTime = filteredHistory[0]?.createdAt ?? null;
 
@@ -259,8 +259,8 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
             </div>
             <span className={styles.historyAxisLabel}>Max Level (m)</span>
             <div className={styles.lineChart}>
-              <svg viewBox="0 0 720 150" preserveAspectRatio="none" aria-hidden="true">
-                <polyline points={chartPoints} />
+              <svg viewBox={`0 0 ${timelineChartWidth} ${timelineChartHeight}`} preserveAspectRatio="none" aria-hidden="true">
+                {chartPoints ? <polyline points={chartPoints} /> : null}
               </svg>
               {timeline.map((group, index) => (
                 <span
@@ -268,11 +268,13 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
                   key={group.key}
                   style={timelinePointStyle(index, timeline.length, group.maxLevel, timelineMax)}
                   tabIndex={0}
+                  data-side={index > Math.max(0, timeline.length - 1) / 2 ? "left" : "right"}
                 >
                   <span className={styles.pointTooltip}>
                     <small>{group.label}</small>
                     <b>{group.maxLevel.toFixed(2)}m</b>
                     <em>{group.count} records</em>
+                    <em>{historySeverity(group.maxLevel)}</em>
                   </span>
                 </span>
               ))}
@@ -284,7 +286,11 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
             </div>
           </div>
           <div className={styles.timelineLabels}>
-            {timelineLabels.map((group) => <span key={group.key}>{group.shortLabel}</span>)}
+            {timelineLabels.map((group) => (
+              <span key={group.key} style={timelineLabelStyle(group.index, timeline.length)}>
+                {group.shortLabel}
+              </span>
+            ))}
           </div>
 
           <div className={styles.historyTableWrap}>
@@ -680,6 +686,15 @@ type HistoryChartGroup = {
   count: number;
 };
 
+const timelineChartWidth = 720;
+const timelineChartHeight = 220;
+const timelineChartPadding = {
+  top: 22,
+  right: 30,
+  bottom: 28,
+  left: 30,
+};
+
 function isInHistoryRange(date: Date | null, range: HistoryRange, customStart: string, customEnd: string) {
   if (!date || Number.isNaN(date.getTime())) return false;
 
@@ -749,19 +764,51 @@ function historySeverity(level: number | null, computedStatus = ""): HistorySeve
 }
 
 function timelinePoints(groups: HistoryChartGroup[], max: number) {
-  if (groups.length === 0) return "";
-  if (groups.length === 1) return `0,${150 - (groups[0].maxLevel / max) * 150} 720,${150 - (groups[0].maxLevel / max) * 150}`;
+  if (groups.length <= 1) return "";
 
   return groups.map((group, index) => {
-    const x = (index / (groups.length - 1)) * 720;
-    const y = 150 - (group.maxLevel / max) * 150;
+    const point = timelinePoint(index, groups.length, group.maxLevel, max);
+    const x = (point.left / 100) * timelineChartWidth;
+    const y = (point.top / 100) * timelineChartHeight;
     return `${x},${y}`;
   }).join(" ");
 }
 
 function timelinePointStyle(index: number, total: number, level: number, max: number) {
-  const left = total <= 1 ? 50 : (index / (total - 1)) * 100;
-  return { left: `${left}%`, top: `${100 - (level / max) * 100}%` };
+  const point = timelinePoint(index, total, level, max);
+  return { left: `${point.left}%`, top: `${point.top}%` };
+}
+
+function timelinePoint(index: number, total: number, level: number, max: number) {
+  const plotWidth = timelineChartWidth - timelineChartPadding.left - timelineChartPadding.right;
+  const plotHeight = timelineChartHeight - timelineChartPadding.top - timelineChartPadding.bottom;
+  const x = total <= 1
+    ? timelineChartPadding.left + plotWidth / 2
+    : timelineChartPadding.left + (index / (total - 1)) * plotWidth;
+  const y = timelineChartPadding.top + (1 - level / max) * plotHeight;
+  const left = (x / timelineChartWidth) * 100;
+  const top = (y / timelineChartHeight) * 100;
+  return { left, top };
+}
+
+function timelineTickLabels(groups: HistoryChartGroup[]) {
+  if (groups.length <= 8) return groups.map((group, index) => ({ ...group, index }));
+
+  const lastIndex = groups.length - 1;
+  const step = Math.ceil(lastIndex / 7);
+  const indexes = new Set<number>([0, lastIndex]);
+  for (let index = step; index < lastIndex; index += step) {
+    indexes.add(index);
+  }
+
+  return Array.from(indexes)
+    .sort((a, b) => a - b)
+    .map((index) => ({ ...groups[index], index }));
+}
+
+function timelineLabelStyle(index: number, total: number) {
+  const point = timelinePoint(index, total, 0, 1);
+  return { left: `${point.left}%` };
 }
 
 function startOfDay(value: Date) {

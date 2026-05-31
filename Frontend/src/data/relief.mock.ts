@@ -15,6 +15,12 @@ export const reliefRecommendationsMock: ReliefRecommendation[] = [
   {
     id: "1",
     barangay: "Barangay Tanong",
+    riskLevel: "Critical / Severe",
+    affectedFamilies: 1200,
+    familyFoodPacks: 800,
+    medicineKits: 50,
+    reliefForIndividual: 1020,
+    hasSensorReading: true,
     recommendedItems: "Family Food Packs (800), Medicine Kits (50), Relief Goods for Individual (1020)",
     analysisReason: "Flood level critical, 1,200 affected families",
     report:
@@ -23,6 +29,12 @@ export const reliefRecommendationsMock: ReliefRecommendation[] = [
   {
     id: "2",
     barangay: "Barangay Catmon",
+    riskLevel: "Flood Warning",
+    affectedFamilies: 600,
+    familyFoodPacks: 400,
+    medicineKits: 500,
+    reliefForIndividual: 300,
+    hasSensorReading: true,
     recommendedItems: "Family Food Packs (400), Medicine Kits (500), Relief Goods for Individual (300)",
     analysisReason: "Rising water levels, 600 affected families",
     report:
@@ -31,6 +43,12 @@ export const reliefRecommendationsMock: ReliefRecommendation[] = [
   {
     id: "3",
     barangay: "Barangay Potrero",
+    riskLevel: "Flood Warning",
+    affectedFamilies: 450,
+    familyFoodPacks: 500,
+    medicineKits: 350,
+    reliefForIndividual: 493,
+    hasSensorReading: true,
     recommendedItems: "Family Food Packs (500), Medicine Kits (350), Relief Goods for Individual (493)",
     analysisReason: "Warning level alert, 450 affected families",
     report:

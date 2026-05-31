@@ -10,21 +10,25 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
 import {
   generateReliefRecommendations,
-  getReliefInventory,
   getReliefRecommendations,
-  saveReliefInventory,
 } from "@/services/reliefService";
-import type { ReliefInventoryItem, ReliefRecommendation } from "@/types/relief";
+import type { ReliefRecommendation } from "@/types/relief";
 import styles from "./ReliefPanel.module.css";
 
 type HistoryEntry = ReturnType<typeof mapHistory>;
 type HistoryDateFilter = "" | "all" | "today" | "last7" | "month";
 type HistorySort = "newest" | "oldest" | "barangay" | "food" | "medicine" | "goods";
+type GenerationInventoryField = "family_food_packs" | "medicine_kits" | "relief_goods_individual";
+
+const generationInventoryDefaults: Record<GenerationInventoryField, string> = {
+  family_food_packs: "0",
+  medicine_kits: "0",
+  relief_goods_individual: "0",
+};
 
 export function ReliefPanel() {
-  const [inventory, setInventory] = useState<ReliefInventoryItem[]>([]);
-  const [draftInventory, setDraftInventory] = useState<ReliefInventoryItem[]>([]);
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [generationInventory, setGenerationInventory] = useState<Record<GenerationInventoryField, string>>(generationInventoryDefaults);
+  const [isGenerationOpen, setIsGenerationOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReliefRecommendation | null>(null);
   const [recommendations, setRecommendations] = useState<ReliefRecommendation[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -50,16 +54,12 @@ export function ReliefPanel() {
       setIsLoading(true);
       setError("");
       try {
-        const [recommendationRows, inventoryRows] = await Promise.all([
-          getReliefRecommendations(),
-          getReliefInventory(),
-        ]);
+        const recommendationRows = await getReliefRecommendations();
 
         if (cancelled) return;
 
         setRecommendations(latestUniqueRecommendations(recommendationRows).map(mapRecommendation));
         setHistory(recommendationRows.map(mapHistory));
-        setInventory(mapInventoryRows(inventoryRows));
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load relief data.");
       } finally {
@@ -106,63 +106,47 @@ export function ReliefPanel() {
     setHistorySearch("");
   }
 
-  function openInventoryModal() {
-    setDraftInventory(inventory.map((item) => ({ ...item, quantity: 0 })));
-    setIsInventoryOpen(true);
+  function openGenerationModal() {
+    setGenerationInventory(generationInventoryDefaults);
+    setIsGenerationOpen(true);
   }
 
-  function updateDraftQuantity(itemId: string, quantity: number) {
-    setDraftInventory((items) =>
-      items.map((item) => (item.id === itemId ? { ...item, quantity: Number.isNaN(quantity) ? 0 : quantity } : item)),
-    );
+  function updateGenerationQuantity(field: GenerationInventoryField, value: string) {
+    if (!/^\d*$/.test(value)) return;
+    setGenerationInventory((current) => ({ ...current, [field]: value }));
   }
 
-  function resetDraftQuantity(itemId: string) {
-    setDraftInventory((items) => items.map((item) => (item.id === itemId ? { ...item, quantity: 0 } : item)));
+  function normalizeGenerationQuantity(field: GenerationInventoryField) {
+    setGenerationInventory((current) => ({ ...current, [field]: String(parseWholeNumber(current[field])) }));
   }
 
-  async function saveInventory() {
+  async function submitGeneration() {
     const payload = {
-      family_food_packs: quantityFor(draftInventory, "Food Pack"),
-      medicine_kits: quantityFor(draftInventory, "Medicine"),
-      relief_goods_individual: quantityFor(draftInventory, "Individual"),
-      items: draftInventory,
+      family_food_packs: parseWholeNumber(generationInventory.family_food_packs),
+      medicine_kits: parseWholeNumber(generationInventory.medicine_kits),
+      relief_goods_individual: parseWholeNumber(generationInventory.relief_goods_individual),
     };
 
-    try {
-      await saveReliefInventory(payload);
-    } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : "Unable to save inventory";
+    if (!hasAnyInventory(payload)) {
       setResultModal({
         open: true,
         type: "error",
-        title: "Failed to Save Inventory",
-        description: message,
-        details: "Inventory changes were not applied. Please check the quantities and try again.",
+        title: "Relief Inventory Required",
+        description: "Please input available relief inventory before generating recommendations.",
+        details: "At least one inventory value must be greater than 0.",
       });
       return;
     }
 
-    setInventory(draftInventory);
-    setIsInventoryOpen(false);
-    setResultModal({
-      open: true,
-      type: "success",
-      title: "Inventory Saved Successfully",
-      description: "The available relief goods inventory has been updated.",
-      details: "Future recommendation runs will use the latest saved inventory values.",
-    });
-  }
-
-  async function generateRecommendation() {
     setIsGenerating(true);
     setError("");
     try {
-      const generatedRows = await generateReliefRecommendations();
+      const generatedRows = await generateReliefRecommendations(payload);
       const latestRows = await getReliefRecommendations();
       const currentRows = generatedRows.length > 0 ? generatedRows : latestUniqueRecommendations(latestRows);
       setRecommendations(currentRows.map(mapRecommendation));
       setHistory(latestRows.map(mapHistory));
+      setIsGenerationOpen(false);
       setResultModal({
         open: true,
         type: "success",
@@ -176,7 +160,7 @@ export function ReliefPanel() {
         type: "error",
         title: "Failed to Generate Recommendation",
         description: generateError instanceof Error ? generateError.message : "Unable to generate recommendations",
-        details: "Please verify sensor, resident, and relief inventory data before trying again.",
+        details: "Please verify the entered inventory, sensor data, and resident data before trying again.",
       });
     } finally {
       setIsGenerating(false);
@@ -193,11 +177,8 @@ export function ReliefPanel() {
               <p>Based on current flood data and affected population analysis</p>
             </div>
             <div className={styles.actions}>
-              <Button className={styles.actionButton} onClick={generateRecommendation} disabled={isGenerating}>
+              <Button className={styles.actionButton} onClick={openGenerationModal} disabled={isGenerating}>
                 {isGenerating ? "Generating..." : "Generate Recommendation"}
-              </Button>
-              <Button className={styles.actionButton} onClick={openInventoryModal}>
-                Input Available Relief
               </Button>
             </div>
           </div>
@@ -249,9 +230,9 @@ export function ReliefPanel() {
             {!isLoading && recommendations.length === 0 ? (
               <EmptyState
                 title="No recommendations generated yet"
-                description="Generate a recommendation once flood data and relief inventory are available."
+                description="Generate a recommendation once flood data is available, then enter the current relief inventory."
                 actionLabel="Generate Recommendation"
-                onAction={generateRecommendation}
+                onAction={openGenerationModal}
               />
             ) : null}
           </div>
@@ -342,63 +323,49 @@ export function ReliefPanel() {
 
       <Modal
         className={styles.inventoryDialog}
-        isOpen={isInventoryOpen}
-        labelledBy="available-relief-title"
-        onClose={() => setIsInventoryOpen(false)}
+        isOpen={isGenerationOpen}
+        labelledBy="generate-relief-title"
+        onClose={() => setIsGenerationOpen(false)}
       >
         <header className={styles.modalHeader}>
           <div>
-            <h3 id="available-relief-title">Input Available Relief</h3>
-            <p>Manage and update your current relief goods inventory</p>
+            <h3 id="generate-relief-title">Generate Relief Recommendation</h3>
+            <p>Input current available relief inventory to calculate recommended allocation.</p>
           </div>
-          <button className={styles.closeButtonLight} type="button" onClick={() => setIsInventoryOpen(false)} aria-label="Close">
+          <button className={styles.closeButtonLight} type="button" onClick={() => setIsGenerationOpen(false)} aria-label="Close">
             x
           </button>
         </header>
         <div className={styles.inventoryBody}>
-          <h4>Current Inventory ({draftInventory.length} items)</h4>
           <div className={styles.inventoryList}>
-            {draftInventory.map((item, index) => (
-              <div className={styles.inventoryItem} key={item.inventory_id || `${item.name}-${index}`}>
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>Unit: {item.unit}</span>
-                </div>
-                <div className={styles.quantityControl}>
-                  <label>
-                    <span className="srOnly">{item.name} quantity</span>
-                    <input
-                      min={0}
-                      type="number"
-                      value={item.quantity}
-                    onChange={(event) => updateDraftQuantity(item.id, Number(event.target.value))}
-                  />
-                    <small>{item.unit}</small>
-                  </label>
-                  <button
-                    className={styles.refreshButton}
-                    type="button"
-                    onClick={() => resetDraftQuantity(item.id)}
-                    aria-label={`Reset ${item.name} quantity`}
-                  >
-                    <span className={styles.refreshIcon} />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {!isLoading && draftInventory.length === 0 ? (
-              <EmptyState
-                title="No relief inventory available"
-                description="Inventory items will appear here once the inventory API returns data."
-              />
-            ) : null}
+            <GenerationQuantityField
+              label="Family Food Packs"
+              unit="packs"
+              value={generationInventory.family_food_packs}
+              onBlur={() => normalizeGenerationQuantity("family_food_packs")}
+              onChange={(value) => updateGenerationQuantity("family_food_packs", value)}
+            />
+            <GenerationQuantityField
+              label="Medicine Kits"
+              unit="kits"
+              value={generationInventory.medicine_kits}
+              onBlur={() => normalizeGenerationQuantity("medicine_kits")}
+              onChange={(value) => updateGenerationQuantity("medicine_kits", value)}
+            />
+            <GenerationQuantityField
+              label="Relief Goods for Individual"
+              unit="pcs"
+              value={generationInventory.relief_goods_individual}
+              onBlur={() => normalizeGenerationQuantity("relief_goods_individual")}
+              onChange={(value) => updateGenerationQuantity("relief_goods_individual", value)}
+            />
           </div>
           <div className={styles.modalFooter}>
-            <Button className={styles.footerButton} tone="muted" onClick={() => setIsInventoryOpen(false)}>
+            <Button className={styles.footerButton} tone="muted" onClick={() => setIsGenerationOpen(false)}>
               Cancel
             </Button>
-            <Button className={styles.footerButton} onClick={saveInventory}>
-              Save Inventory
+            <Button className={styles.footerButton} onClick={submitGeneration} disabled={isGenerating}>
+              {isGenerating ? "Generating..." : "Generate Recommendation"}
             </Button>
           </div>
         </div>
@@ -422,7 +389,43 @@ export function ReliefPanel() {
               </button>
             </header>
             <div className={styles.reportBody}>
-              <p>{selectedReport.report}</p>
+              <section className={styles.reportSection}>
+                <h4>Recommendation Summary</h4>
+                <dl className={styles.reportGrid}>
+                  <ReportDetail label="Barangay" value={selectedReport.barangay} />
+                  <ReportDetail label="Risk Level" value={selectedReport.riskLevel} />
+                  <ReportDetail label="Affected Family Records" value={selectedReport.affectedFamilies} />
+                  <ReportDetail label="Family Food Packs" value={selectedReport.familyFoodPacks} />
+                  <ReportDetail label="Medicine Kits" value={selectedReport.medicineKits} />
+                  <ReportDetail label="Relief Goods for Individual" value={selectedReport.reliefForIndividual} />
+                </dl>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Recommended Allocation</h4>
+                <p>{selectedReport.recommendedItems}</p>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Flood Risk / Fuzzy Logic Explanation</h4>
+                <p>
+                  The system uses fuzzy-rule-based flood classification to convert water level readings into understandable risk categories:
+                  Normal is below alert threshold, Flood Alert is around 0.25m to 0.50m, Flood Warning is around 0.75m to 1.00m, and Severe or Critical is around 1.20m to 1.50m.
+                  {!selectedReport.hasSensorReading ? " No latest sensor reading was available, so the recommendation relied more heavily on family vulnerability data." : ""}
+                </p>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>AHP-inspired Vulnerability Explanation</h4>
+                <p>
+                  The recommendation applies AHP-inspired vulnerability weighting using household factors such as PWD, elderly, 4Ps, lactating, pregnant, infant, toddler, and total family members. These factors help prioritize barangays with more vulnerable residents.
+                </p>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Inventory Constraint Explanation</h4>
+                <p>This recommendation uses fuzzy-rule-based flood classification to interpret sensor water levels, then applies AHP-inspired vulnerability weighting using family cluster factors such as PWD, elderly, pregnant, infant, toddler, and total family members. Final allocations are constrained by the available relief inventory entered during generation.</p>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Final Analysis Reason</h4>
+                <p>{selectedReport.report}</p>
+              </section>
             </div>
           </>
         ) : null}
@@ -442,8 +445,49 @@ export function ReliefPanel() {
   );
 }
 
-function quantityFor(items: ReliefInventoryItem[], partialName: string) {
-  return items.find((item) => item.name.toLowerCase().includes(partialName.toLowerCase()))?.quantity ?? 0;
+function parseWholeNumber(value: unknown) {
+  const parsed = Number(String(value ?? "").replace(/^0+(?=\d)/, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
+}
+
+function hasAnyInventory(payload: Record<GenerationInventoryField, number>) {
+  return Object.values(payload).some((value) => value > 0);
+}
+
+function GenerationQuantityField({
+  label,
+  unit,
+  value,
+  onBlur,
+  onChange,
+}: {
+  label: string;
+  unit: string;
+  value: string;
+  onBlur: () => void;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className={styles.inventoryItem}>
+      <div>
+        <strong>{label}</strong>
+        <span>Unit: {unit}</span>
+      </div>
+      <div className={styles.quantityControl}>
+        <label>
+          <span className="srOnly">{label}</span>
+          <input
+            min={0}
+            type="number"
+            value={value}
+            onBlur={onBlur}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          <small>{unit}</small>
+        </label>
+      </div>
+    </div>
+  );
 }
 
 function latestUniqueRecommendations(rows: Record<string, unknown>[]) {
@@ -474,16 +518,58 @@ function mapRecommendation(row: Record<string, unknown>, index: number): ReliefR
   const medicineKits = Number(row.recommended_medicine_kits ?? 0);
   const individualGoods = Number(row.recommended_relief_goods_individual ?? 0);
   const analysisReason = formatAnalysisReason(String(row.analysis_reason ?? fallbackAnalysisReason(row)));
+  const affectedFamilies = Number(row.affected_families ?? affectedFamiliesFromReason(analysisReason));
+  const rawRisk = String(row.risk_level ?? "");
+  const riskLevel = formatRiskLevel(rawRisk || riskFromReason(analysisReason));
+  const hasSensorReading = rawRisk !== "no_reading" && !/^No latest sensor reading/i.test(analysisReason);
+  const hasAllocation = foodPacks + medicineKits + individualGoods > 0;
 
   return {
     recommendation_id: row.recommendation_id ? String(row.recommendation_id) : undefined,
     id: String(index + 1),
     barangay_name: String(row.barangay_name ?? row.barangay ?? "Unknown"),
     barangay: String(row.barangay_name ?? row.barangay ?? "Unknown"),
-    recommendedItems: `${foodPacks} food packs, ${medicineKits} medicine kits, ${individualGoods} individual goods`,
+    riskLevel,
+    affectedFamilies,
+    familyFoodPacks: foodPacks,
+    medicineKits,
+    reliefForIndividual: individualGoods,
+    hasSensorReading,
+    recommendedItems: hasAllocation
+      ? `${foodPacks} food packs, ${medicineKits} medicine kits, ${individualGoods} individual goods`
+      : "Inventory fully allocated to higher-priority areas.",
     analysisReason,
     report: analysisReason,
   };
+}
+
+function affectedFamiliesFromReason(reason: string) {
+  const match = reason.match(/(\d+)\s+affected/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function riskFromReason(reason: string) {
+  const match = reason.match(/^(Normal|Flood Alert|Flood Warning|Critical|Warning|Severe)/i);
+  return match?.[1] ?? "No reading";
+}
+
+function formatRiskLevel(value: string) {
+  const normalized = value.replace(/_/g, " ").trim().toLowerCase();
+  if (normalized === "critical" || normalized === "severe") return "Critical / Severe";
+  if (normalized === "warning") return "Flood Warning";
+  if (normalized === "alert") return "Flood Alert";
+  if (normalized === "no reading" || normalized === "no_reading") return "No reading";
+  if (normalized === "normal") return "Normal";
+  return normalized ? capitalize(normalized) : "No reading";
+}
+
+function ReportDetail({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
 }
 
 function fallbackAnalysisReason(row: Record<string, unknown>) {
@@ -504,16 +590,17 @@ function formatAnalysisReason(reason: string) {
     .replace(/\b1 affected families\b/gi, "1 affected family")
     .replace(/\b(\d+) affected family record(s)?\b/gi, (_match, count: string) => `${count} affected ${count === "1" ? "family record" : "family records"}`);
 
-  const sensorMatch = normalized.match(/^(critical|warning|normal)\s+flood risk at ([^,.]+),\s*(\d+)\s+affected famil(?:y|ies)\.?$/i);
+  const sensorMatch = normalized.match(/^(critical|warning|normal|flood warning)\s+flood risk (?:detected )?at ([^,.]+)(?: with|,)\s*(\d+)\s+affected famil(?:y|ies)\.?(.*)$/i);
   if (sensorMatch) {
-    const [, risk, level, familyCount] = sensorMatch;
-    return `${capitalize(risk)} flood risk detected at ${level.trim()} with ${familyCount} affected ${familyCount === "1" ? "family" : "families"}.`;
+    const [, risk, level, familyCount, suffix] = sensorMatch;
+    return `${formatRiskLevel(risk)} flood risk detected at ${level.trim()} with ${familyCount} affected ${familyCount === "1" ? "family" : "families"}.${suffix ? ` ${ensureSentence(capitalize(suffix.trim()))}` : ""}`;
   }
 
-  const noReadingMatch = normalized.match(/^no latest sensor reading available,\s*(\d+)\s+affected famil(?:y|ies)\.?$/i);
+  const noReadingMatch = normalized.match(/^no latest sensor reading available\.?\s*(?:based on)?\s*(\d+)\s+affected famil(?:y|ies|y record|y records)\.?(.*)$/i);
   if (noReadingMatch) {
     const familyCount = noReadingMatch[1];
-    return `No latest sensor reading available. Based on ${familyCount} affected ${familyCount === "1" ? "family record" : "family records"}.`;
+    const suffix = noReadingMatch[2]?.trim();
+    return `No latest sensor reading available. Based on ${familyCount} affected ${familyCount === "1" ? "family record" : "family records"}.${suffix ? ` ${ensureSentence(capitalize(suffix))}` : ""}`;
   }
 
   if (!normalized) return "Recommendation generated from current flood and resident data.";
@@ -582,53 +669,4 @@ function sortHistoryEntries(a: HistoryEntry, b: HistoryEntry, sort: HistorySort)
   if (sort === "medicine") return b.medicineKits - a.medicineKits;
   if (sort === "goods") return b.reliefForIndividual - a.reliefForIndividual;
   return b.createdAt.getTime() - a.createdAt.getTime();
-}
-
-function mapInventoryRows(rows: Record<string, unknown>[]): ReliefInventoryItem[] {
-  const latest = rows[0];
-
-  if (Array.isArray(latest?.items)) {
-    return latest.items.map((item, index) => mapInventoryItem(item as Record<string, unknown>, index));
-  }
-
-  if (latest && ("family_food_packs" in latest || "medicine_kits" in latest || "relief_goods_individual" in latest)) {
-    return [
-      {
-        inventory_id: `${latest.inventory_id ?? "current"}-food-packs`,
-        id: "family-food-packs",
-        name: "Family Food Pack",
-        unit: "packs",
-        quantity: Number(latest.family_food_packs ?? 0),
-      },
-      {
-        inventory_id: `${latest.inventory_id ?? "current"}-medicine-kits`,
-        id: "medicine-kits",
-        name: "Medicine Kit",
-        unit: "kits",
-        quantity: Number(latest.medicine_kits ?? 0),
-      },
-      {
-        inventory_id: `${latest.inventory_id ?? "current"}-individual-goods`,
-        id: "relief-goods-individual",
-        name: "Relief Goods Individual",
-        unit: "pcs",
-        quantity: Number(latest.relief_goods_individual ?? 0),
-      },
-    ];
-  }
-
-  return rows.map(mapInventoryItem);
-}
-
-function mapInventoryItem(row: Record<string, unknown>, index: number): ReliefInventoryItem {
-  const inventoryId = row.inventory_id ? String(row.inventory_id) : undefined;
-  const name = String(row.item_name ?? row.name ?? `Inventory Item ${index + 1}`);
-
-  return {
-    inventory_id: inventoryId,
-    id: inventoryId ?? `${name}-${index}`,
-    name,
-    unit: String(row.unit ?? "pcs"),
-    quantity: Number(row.quantity ?? 0),
-  };
 }

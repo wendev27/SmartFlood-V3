@@ -155,6 +155,17 @@
   color: #b42318;
 }
 
+.inventoryNotice {
+  background: #eef6ff;
+  border: 1px solid #cfe2ff;
+  border-radius: 8px;
+  color: #155dff;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
 .recommendationList {
   display: grid;
   gap: 18px;
@@ -180,6 +191,17 @@
   box-shadow: 0 10px 20px rgba(15, 97, 255, 0.14);
   outline: 0;
   transform: translateY(-1px);
+}
+
+.recommendationCard[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.recommendationCard[aria-disabled="true"]:hover {
+  border-color: #94c4ff;
+  box-shadow: none;
+  transform: none;
 }
 
 .cardTop {
@@ -226,6 +248,13 @@
   border-color: #0f61ff;
   color: #ffffff;
   outline: 0;
+}
+
+.viewButton:disabled {
+  background: #edf2f7;
+  border-color: #cbd5e1;
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
 .cardDetails {
@@ -481,20 +510,58 @@
   border: 1px solid #d4dce7;
   border-radius: 4px;
   box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 20px;
   margin: 18px 26px 26px;
-  padding: 32px;
+  padding: 28px;
 }
 
 .reportBody p {
   color: #111827;
   font-size: 14px;
-  line-height: 2;
+  line-height: 1.8;
   margin: 0;
-  text-align: justify;
 }
 
-.reportBody p::first-line {
-  color: #ff0f2f;
+.reportSection {
+  display: grid;
+  gap: 10px;
+}
+
+.reportSection h4 {
+  color: #004b88;
+  font-size: 13px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.reportGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.reportGrid div {
+  background: #f8fbff;
+  border: 1px solid #e4efff;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.reportGrid dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.reportGrid dd {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0;
 }
 
 @media (min-width: 700px) {
