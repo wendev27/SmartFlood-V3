@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { getFloodStatusLabel } from "@/lib/statusStyles";
 import {
   generateReliefRecommendations,
   getReliefRecommendations,
@@ -580,11 +581,7 @@ function riskFromReason(reason: string) {
 
 function formatRiskLevel(value: string) {
   const normalized = value.replace(/_/g, " ").trim().toLowerCase();
-  if (normalized === "critical" || normalized === "severe" || normalized === "severity") return "Severity";
-  if (normalized === "warning") return "Flood Warning";
-  if (normalized === "alert") return "Flood Alert";
-  if (normalized === "no reading" || normalized === "no_reading") return "No reading";
-  if (normalized === "normal") return "Normal";
+  if (/^(critical|severe|severity|warning|alert|no reading|normal)$/.test(normalized)) return getFloodStatusLabel(normalized);
   return normalized ? capitalize(normalized) : "No reading";
 }
 
@@ -651,7 +648,7 @@ function formatAnalysisReason(reason: string) {
   }
 
   if (!normalized) return "Recommendation generated from current flood and resident data.";
-  return ensureSentence(capitalize(normalized));
+  return ensureSentence(capitalize(normalized.replace(/\bcritical\b/gi, "Severity")));
 }
 
 function capitalize(value: string) {

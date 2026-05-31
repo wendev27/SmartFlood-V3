@@ -1,4 +1,5 @@
 import type { DashboardUserProfile } from "@/components/layout/AppShell/AppShell";
+import { normalizeLogRole } from "@/lib/logVisibility";
 import type { DashboardRole } from "@/types/navigation";
 
 export type StoredSessionUser = {
@@ -71,15 +72,7 @@ export function clearStoredSession() {
 }
 
 export function normalizeUserRole(user: StoredSessionUser | null): NormalizedRole | null {
-  if (!user) return null;
-  const roleId = user.role_id == null ? "" : String(user.role_id);
-  const roleText = `${user.role_name ?? ""} ${user.role_label ?? ""}`.toLowerCase();
-
-  if (roleId === "1" || /super/.test(roleText)) return "super";
-  if (roleId === "2" || /cdrrmo|ndrrmo|officer|disaster/.test(roleText)) return "cdrrmo";
-  if (roleId === "3" || /city|welfare|cswdd/.test(roleText)) return "cswdd";
-  if (roleId === "4" || /barangay/.test(roleText)) return "barangay";
-  return null;
+  return normalizeLogRole(user);
 }
 
 export function getUserInitials(user: StoredSessionUser | null) {

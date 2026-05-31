@@ -110,6 +110,47 @@
   background: #e7f1ff;
 }
 
+.clickableRow strong {
+  color: #1e293b;
+  font-size: 12px;
+}
+
+.clickableRow strong.flood_alert {
+  color: #ca8a04;
+}
+
+.clickableRow strong.flood_warning {
+  color: #ea580c;
+}
+
+.clickableRow strong.severity {
+  color: #dc2626;
+}
+
+.clickableRow strong.no_reading {
+  color: #64748b;
+}
+
+.selectedRow.normal {
+  box-shadow: inset 4px 0 0 #17a34a;
+}
+
+.selectedRow.flood_alert {
+  box-shadow: inset 4px 0 0 #f7bd00;
+}
+
+.selectedRow.flood_warning {
+  box-shadow: inset 4px 0 0 #ff7417;
+}
+
+.selectedRow.severity {
+  box-shadow: inset 4px 0 0 #ff3347;
+}
+
+.selectedRow.no_reading {
+  box-shadow: inset 4px 0 0 #94a3b8;
+}
+
 @media (min-width: 900px) {
   .panel {
     height: auto;

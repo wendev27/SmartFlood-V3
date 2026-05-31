@@ -1,22 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Modal } from "@/components/ui/Modal/Modal";
 import { getCurrentUser, logLabelForRole, normalizeUserRole } from "@/lib/authSession";
+import { cn } from "@/lib/cn";
+import { filterLogsForViewer } from "@/lib/logVisibility";
 import { getAuditLogs } from "@/services/logsService";
 import type { AuditLog } from "@/types/logs";
 import styles from "./SystemLogs.module.css";
-
-const cswddModules = new Set([
-  "Resident Information",
-  "Resident Account Registration Management",
-  "AI-Optimized Relief Recommendation",
-]);
-
-const cdrrmoModules = new Set([
-  "Flood Monitoring Module",
-  "Sensor History",
-  "Authentication",
-]);
 
 export function SystemLogs() {
   const [query, setQuery] = useState("");
@@ -25,6 +16,7 @@ export function SystemLogs() {
   const [logsSource, setLogsSource] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [previewLog, setPreviewLog] = useState<AuditLog | null>(null);
   const user = getCurrentUser();
   const role = normalizeUserRole(user) ?? "barangay";
   const title = logLabelForRole(role);
@@ -51,7 +43,7 @@ export function SystemLogs() {
     };
   }, []);
 
-  const roleScopedLogs = useMemo(() => scopeLogsByRole(logsSource, role, user?.barangay_id ?? null), [logsSource, role, user?.barangay_id]);
+  const roleScopedLogs = useMemo(() => filterLogsForViewer(logsSource, user), [logsSource, user]);
   const moduleOptions = useMemo(() => unique(roleScopedLogs.map((log) => log.module ?? "")), [roleScopedLogs]);
   const actionOptions = useMemo(() => unique(roleScopedLogs.map((log) => log.action)), [roleScopedLogs]);
 
@@ -106,8 +98,7 @@ export function SystemLogs() {
               <th>Role</th>
               <th>Action</th>
               <th>Module</th>
-              <th>Description</th>
-              <th>Barangay</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
@@ -116,35 +107,116 @@ export function SystemLogs() {
                 <td>{formatDateTime(log.created_at ?? "")}</td>
                 <td>{log.actor_name || "-"}</td>
                 <td>{log.actor_role || "-"}</td>
-                <td><span className={styles.action}>{log.action}</span></td>
+                <td><span className={cn(styles.action, styles[getActionTone(log.action)])}>{log.action}</span></td>
                 <td>{log.module ?? "-"}</td>
-                <td>{log.description || "-"}</td>
-                <td>{log.barangay_name || "-"}</td>
+                <td><button className={styles.previewButton} type="button" onClick={() => setPreviewLog(log)}>Preview</button></td>
               </tr>
             ))}
             {isLoading ? (
               <tr>
-                <td className={styles.empty} colSpan={7}>Loading logs...</td>
+                <td className={styles.empty} colSpan={6}>Loading logs...</td>
               </tr>
             ) : null}
             {!isLoading && logs.length === 0 ? (
               <tr>
-                <td className={styles.empty} colSpan={7}>No logs found.</td>
+                <td className={styles.empty} colSpan={6}>No logs available for your role or assigned barangay.</td>
               </tr>
             ) : null}
           </tbody>
         </table>
       </div>
+
+      <Modal isOpen={Boolean(previewLog)} onClose={() => setPreviewLog(null)} labelledBy="log-preview-title" size="md">
+        {previewLog ? (
+          <>
+            <header className={styles.modalHeader}>
+              <div>
+                <h3 id="log-preview-title">Log Details</h3>
+                <p>Complete activity record</p>
+              </div>
+              <button type="button" onClick={() => setPreviewLog(null)} aria-label="Close log preview">x</button>
+            </header>
+            <div className={styles.modalBody}>
+              <dl className={styles.detailGrid}>
+                <Detail label="Date/Time" value={formatDateTime(previewLog.created_at ?? previewLog.timestamp ?? "")} />
+                <Detail label="Actor" value={previewLog.actor_name || previewLog.user || "-"} />
+                <Detail label="Role" value={previewLog.actor_role || "-"} />
+                <Detail label="Action" value={previewLog.action} />
+                <Detail label="Module" value={previewLog.module || "-"} />
+                <Detail label="Barangay" value={previewLog.barangay_name || "-"} />
+                {previewLog.status ? <Detail label="Status / Result" value={previewLog.status} /> : null}
+                <Detail label="Description" value={previewLog.description || "-"} wide />
+              </dl>
+              {getMetadata(previewLog).length > 0 ? (
+                <section className={styles.metadata} aria-label="Log metadata">
+                  <h4>Metadata</h4>
+                  <dl className={styles.detailGrid}>
+                    {getMetadata(previewLog).map(([label, value]) => <Detail key={label} label={label} value={value} />)}
+                  </dl>
+                </section>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </Modal>
     </section>
   );
 }
 
-function scopeLogsByRole(logs: AuditLog[], role: string, barangayId: number | null | undefined) {
-  if (role === "super") return logs;
-  if (role === "barangay") return logs.filter((log) => !barangayId || Number(log.barangay_id) === Number(barangayId) || log.actor_role === "Barangay Admin" || log.actor_role === "Barangay Official");
-  if (role === "cswdd") return logs.filter((log) => cswddModules.has(log.module ?? "") || log.actor_role === "CSWDD Admin");
-  if (role === "cdrrmo") return logs.filter((log) => cdrrmoModules.has(log.module ?? "") || log.actor_role === "CDRRMO Admin");
-  return logs;
+function Detail({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={wide ? styles.wideDetail : undefined}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+function getMetadata(log: AuditLog): Array<[string, string]> {
+  return [
+    ["Log ID", log.log_id],
+    ["Actor User ID", log.actor_user_id],
+    ["Target Type", log.target_type],
+    ["Target ID", log.target_id],
+    ["Barangay ID", log.barangay_id],
+    ["Category", log.category],
+    ["Department", log.department],
+    ["IP Address", log.ipAddress],
+  ].flatMap(([label, value]) => value == null || value === "" ? [] : [[String(label), String(value)]]);
+}
+
+function getActionTone(action: string) {
+  const value = action.toUpperCase().replace(/[\s-]+/g, "_");
+
+  if (
+    value.includes("DELETE")
+    || value.includes("REJECT")
+    || value.includes("BLOCK")
+    || value.includes("DISABLE")
+    || value.includes("FAILED")
+    || value.includes("ERROR")
+  ) return "badgeDanger";
+
+  if (
+    value.includes("EDIT")
+    || value.includes("UPDATE")
+    || value.includes("CHANGE")
+    || value.includes("REVIEW")
+    || value.includes("MODIFY")
+  ) return "badgeWarning";
+
+  if (
+    value.includes("LOGIN_SUCCESS")
+    || value.includes("LOGOUT")
+    || value.includes("CREATE")
+    || value.includes("ADD")
+    || value.includes("APPROVE")
+    || value.includes("GENERATED")
+    || value.includes("REGISTER")
+    || value.includes("ENABLE")
+  ) return "badgeSuccess";
+
+  return "badgeNeutral";
 }
 
 function unique(values: string[]) {
