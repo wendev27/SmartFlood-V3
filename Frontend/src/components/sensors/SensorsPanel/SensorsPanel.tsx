@@ -77,13 +77,10 @@ export function SensorsPanel() {
   }, []);
 
   useEffect(() => {
-    const storedSensorId = window.sessionStorage.getItem("smartflood:selectedSensorId");
-    if (!storedSensorId) return;
+    const explicitSensorId = readExplicitSensorFocus();
+    if (!explicitSensorId) return;
 
-    setSelectedSensorId(storedSensorId);
-    window.requestAnimationFrame(() => {
-      mapRegionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    setSelectedSensorId(explicitSensorId);
   }, []);
 
   const barangays = useMemo(() => Array.from(new Set(sensors.map((sensor) => sensor.barangay))).sort(), [sensors]);
@@ -100,7 +97,6 @@ export function SensorsPanel() {
     if (isLoading || sensors.length === 0) return;
     if (!displayedSensors.some((sensor) => sensor.sensor_key === selectedSensorId)) {
       setSelectedSensorId(null);
-      window.sessionStorage.removeItem("smartflood:selectedSensorId");
     }
   }, [displayedSensors, isLoading, selectedSensorId, sensors.length]);
 
@@ -121,7 +117,6 @@ export function SensorsPanel() {
     }
 
     setSelectedSensorId(sensor.sensor_key);
-    window.sessionStorage.setItem("smartflood:selectedSensorId", sensor.sensor_key);
     window.requestAnimationFrame(() => {
       mapRegionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
@@ -254,4 +249,46 @@ function formatCoordinates(row: Record<string, unknown>) {
 
 function sensorKey(sensor: Record<string, unknown>, index: number) {
   return String(sensor.sensorId ?? sensor.sensor_id ?? sensor._id ?? `${sensor.name ?? "sensor"}-${index}`);
+}
+
+function readExplicitSensorFocus() {
+  if (typeof window === "undefined") return "";
+
+  const url = new URL(window.location.href);
+  const searchSensorId = url.searchParams.get("sensorId")?.trim();
+  const hashSensorId = sensorIdFromHash(url.hash);
+  const shouldUseStoredFocus = window.sessionStorage.getItem("smartflood:focusSensorFromDashboard") === "true";
+  const storedSensorId = shouldUseStoredFocus ? window.sessionStorage.getItem("smartflood:selectedSensorId")?.trim() : "";
+  const explicitSensorId = searchSensorId || hashSensorId || storedSensorId || "";
+
+  window.sessionStorage.removeItem("smartflood:focusSensorFromDashboard");
+  window.sessionStorage.removeItem("smartflood:selectedSensorId");
+
+  if (searchSensorId || hashSensorId) {
+    clearSensorIdFromUrl(url);
+  }
+
+  return explicitSensorId;
+}
+
+function sensorIdFromHash(hash: string) {
+  const queryIndex = hash.indexOf("?");
+  if (queryIndex === -1) return "";
+
+  return new URLSearchParams(hash.slice(queryIndex + 1)).get("sensorId")?.trim() ?? "";
+}
+
+function clearSensorIdFromUrl(url: URL) {
+  url.searchParams.delete("sensorId");
+
+  const queryIndex = url.hash.indexOf("?");
+  if (queryIndex !== -1) {
+    const hashBase = url.hash.slice(0, queryIndex);
+    const hashParams = new URLSearchParams(url.hash.slice(queryIndex + 1));
+    hashParams.delete("sensorId");
+    const nextHashQuery = hashParams.toString();
+    url.hash = nextHashQuery ? `${hashBase}?${nextHashQuery}` : hashBase;
+  }
+
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 }
