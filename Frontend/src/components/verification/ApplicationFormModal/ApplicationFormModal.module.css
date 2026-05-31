@@ -42,6 +42,9 @@
 }
 
 .form {
+  max-height: calc(100dvh - 164px);
+  min-height: 0;
+  overflow-y: auto;
   padding: 28px;
 }
 

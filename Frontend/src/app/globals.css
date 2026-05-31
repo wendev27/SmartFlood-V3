@@ -20,7 +20,7 @@
   --radius-xl: 30px;
   --shadow-soft: 0 12px 22px rgba(0, 0, 0, 0.12);
   --shadow-blue: 0 10px 22px rgba(0, 88, 255, 0.28);
-  --z-modal: 50;
+  --z-modal: 9999;
 }
 
 *,

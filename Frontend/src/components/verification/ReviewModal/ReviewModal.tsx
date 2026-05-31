@@ -28,17 +28,19 @@ export function ReviewModal({ isOpen, application, onApprove, onReject, onClose 
   return (
     <Modal isOpen={isOpen} onClose={onClose} labelledBy="review-title">
       <header className={styles.header}>
-        <div className={styles.avatar}>{application?.initials ?? "NA"}</div>
-        <div className={styles.titleBlock}>
-          <div className={styles.titleRow}>
-            <h2 id="review-title">{title}</h2>
-            {application ? (
-              <Badge tone={status === "approved" ? "green" : status === "rejected" ? "red" : "blue"}>
-                {capitalize(status)}
-              </Badge>
-            ) : null}
+        <div className={styles.identity}>
+          <div className={styles.avatar}>{application?.initials ?? "NA"}</div>
+          <div className={styles.titleBlock}>
+            <div className={styles.titleRow}>
+              <h2 id="review-title">{title}</h2>
+              {application ? (
+                <Badge tone={status === "approved" ? "green" : status === "rejected" ? "red" : "blue"}>
+                  {capitalize(status)}
+                </Badge>
+              ) : null}
+            </div>
+            <p>{application?.name ?? "Application"} · Resident Registration</p>
           </div>
-          <p>{application?.name ?? "Application"} · Resident Registration</p>
         </div>
         <button className={styles.close} type="button" aria-label="Close review" onClick={onClose} />
       </header>
