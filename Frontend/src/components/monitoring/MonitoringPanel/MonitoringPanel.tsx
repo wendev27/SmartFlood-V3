@@ -9,6 +9,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
+import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel } from "@/lib/statusStyles";
 import { getFloodMonitoringData, getSensorHistory, type FloodHistoryRow } from "@/services/floodService";
 import styles from "./MonitoringPanel.module.css";
 
@@ -217,9 +218,10 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
               <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
                 <option value="">All levels</option>
                 <option value="Normal">Normal</option>
-                <option value="Warning">Warning</option>
-                <option value="Alert">Alert</option>
+                <option value="Flood Alert">Flood Alert</option>
+                <option value="Flood Warning">Flood Warning</option>
                 <option value="Critical">Critical</option>
+                <option value="No reading">No reading</option>
               </select>
             </label>
             <label className={styles.historySearch}>
@@ -239,7 +241,7 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
             <HistoryMetric label="Total Records" value={filteredHistory.length} />
             <HistoryMetric label="Highest Water Level" value={`${highestWaterLevel.toFixed(2)}m`} />
             <HistoryMetric label="Critical Count" value={countHistorySeverity(filteredHistory, "Critical")} />
-            <HistoryMetric label="Warning Count" value={countHistorySeverity(filteredHistory, "Warning")} />
+            <HistoryMetric label="Warning Count" value={countHistorySeverity(filteredHistory, "Flood Warning")} />
             <HistoryMetric label="Latest Reading" value={formatTimestamp(latestReadingTime)} />
           </div>
 
@@ -262,7 +264,7 @@ function FloodHistory({ onBack }: { onBack: () => void }) {
               </svg>
               {timeline.map((group, index) => (
                 <span
-                  className={`${styles.analyticsPoint} ${styles[`point${historySeverity(group.maxLevel)}`]}`}
+                  className={`${styles.analyticsPoint} ${styles[severityPointClass(historySeverity(group.maxLevel))]}`}
                   key={group.key}
                   style={timelinePointStyle(index, timeline.length, group.maxLevel, timelineMax)}
                   tabIndex={0}
@@ -397,7 +399,8 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
           <h3>Flood Risk Heatmap</h3>
           <div className={styles.legendRow}>
             <span><i className={styles.legendNormal} />Normal</span>
-            <span><i className={styles.legendWarning} />Warning</span>
+            <span><i className={styles.legendAlert} />Flood Alert</span>
+            <span><i className={styles.legendWarning} />Flood Warning</span>
             <span><i className={styles.legendCritical} />Critical</span>
             <span><i className={styles.legendNoReading} />No reading</span>
           </div>
@@ -437,8 +440,9 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
         </div>
         <div className={styles.chartLegend}>
           <span><i className={styles.legendNormal} />Normal</span>
-          <span><i className={styles.legendWarning} />Warning (m)</span>
-          <span><i className={styles.legendCritical} />Critical (m)</span>
+          <span><i className={styles.legendAlert} />Flood Alert</span>
+          <span><i className={styles.legendWarning} />Flood Warning</span>
+          <span><i className={styles.legendCritical} />Critical</span>
           <span><i className={styles.legendNoReading} />No reading</span>
         </div>
       </article>
@@ -477,6 +481,7 @@ function FloodHeatmap({ onBack }: { onBack: () => void }) {
             <ReportDetail label="Sensor Nodes" value={latestReadings.length} />
             <ReportDetail label="Critical" value={countRisk(latestReadings, "critical")} />
             <ReportDetail label="Warning" value={countRisk(latestReadings, "warning")} />
+            <ReportDetail label="Alert" value={countRisk(latestReadings, "alert")} />
             <ReportDetail label="Normal" value={countRisk(latestReadings, "normal")} />
             <ReportDetail label="Highest Water Level" value={highestReading ? `${highestReading.sensorName} - ${formatWaterLevel(highestReading.waterLevelM)}` : "No reading"} />
             <ReportDetail label="Highest Risk Barangay" value={highestRiskBarangay || "No reading"} />
@@ -593,7 +598,8 @@ function riskDistributionFor(readings: FloodHistoryRow[]) {
   const total = readings.length;
   const categories = [
     { label: "Normal", group: "normal", dot: "legendNormal", valueTone: "normalText" },
-    { label: "Warning", group: "warning", dot: "legendWarning", valueTone: "warningText" },
+    { label: "Flood Alert", group: "alert", dot: "legendAlert", valueTone: "alertText" },
+    { label: "Flood Warning", group: "warning", dot: "legendWarning", valueTone: "warningText" },
     { label: "Critical", group: "critical", dot: "legendCritical", valueTone: "criticalText" },
     { label: "No reading", group: "no_reading", dot: "legendNoReading", valueTone: "noReadingText" },
   ];
@@ -605,7 +611,7 @@ function riskDistributionFor(readings: FloodHistoryRow[]) {
 }
 
 function distributionGradient(distribution: ReturnType<typeof riskDistributionFor>) {
-  const colors = ["#17a34a", "#f7bd00", "#ff3347", "#94a3b8"];
+  const colors = ["#17a34a", "#f7bd00", "#ff7417", "#ff3347", "#94a3b8"];
   let start = 0;
   const segments = distribution.map((item, index) => {
     const end = start + Number(item.percent.replace("%", ""));
@@ -621,17 +627,13 @@ function barTone(reading: FloodHistoryRow) {
   const group = riskGroup(reading);
   if (group === "critical") return "criticalBar";
   if (group === "warning") return "warningBar";
+  if (group === "alert") return "alertBar";
   if (group === "normal") return "normalBar";
   return "noReadingBar";
 }
 
 function riskGroup(reading: FloodHistoryRow) {
-  if (reading.waterLevelM == null) return "no_reading";
-
-  const status = reading.computedStatus.toLowerCase();
-  if (status.includes("critical")) return "critical";
-  if (status.includes("warning") || status.includes("alert")) return "warning";
-  return "normal";
+  return getFloodStatusClass(reading.computedStatus, reading.waterLevelM);
 }
 
 function countRisk(readings: FloodHistoryRow[], group: string) {
@@ -652,7 +654,8 @@ function narrativeFor(readings: FloodHistoryRow[], highest: FloodHistoryRow | nu
 
   const critical = countRisk(readings, "critical");
   const warning = countRisk(readings, "warning");
-  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${critical} critical and ${warning} warning sensor readings. Immediate monitoring is recommended.`;
+  const alert = countRisk(readings, "alert");
+  return `Based on the latest sensor readings, ${barangay || highest.barangayName} has the highest observed risk. ${highest.sensorName} recorded ${formatWaterLevel(highest.waterLevelM)}. The network currently has ${critical} critical, ${warning} warning, and ${alert} alert sensor readings. Immediate monitoring is recommended.`;
 }
 
 function formatWaterLevel(value: number | null) {
@@ -668,7 +671,7 @@ function formatTimestamp(value: string | null) {
 
 type HistoryRange = "today" | "last7" | "last28" | "month" | "custom";
 type HistoryGroup = "hourly" | "daily" | "weekly" | "monthly" | "yearly";
-type HistorySeverity = "Normal" | "Warning" | "Alert" | "Critical";
+type HistorySeverity = "Normal" | "Flood Alert" | "Flood Warning" | "Critical" | "No reading";
 type HistoryChartGroup = {
   key: string;
   label: string;
@@ -742,15 +745,7 @@ function historyBucket(date: Date, groupBy: HistoryGroup) {
 }
 
 function historySeverity(level: number | null, computedStatus = ""): HistorySeverity {
-  const normalizedStatus = computedStatus.toLowerCase();
-  if (normalizedStatus.includes("critical")) return "Critical";
-  if (normalizedStatus.includes("alert")) return "Alert";
-  if (normalizedStatus.includes("warning")) return "Warning";
-  if (normalizedStatus.includes("normal")) return "Normal";
-
-  if (level == null || level < 0.5) return "Normal";
-  if (level < 1) return "Warning";
-  return "Critical";
+  return getFloodStatusLabel(computedStatus, level) as HistorySeverity;
 }
 
 function timelinePoints(groups: HistoryChartGroup[], max: number) {
@@ -782,7 +777,15 @@ function localDateKey(value: Date) {
 }
 
 function SeverityBadge({ level }: { level: HistorySeverity }) {
-  return <Badge tone={level === "Normal" ? "green" : level === "Warning" ? "yellow" : level === "Alert" ? "orange" : "red"}>{level}</Badge>;
+  return <Badge tone={getFloodBadgeTone(level)}>{level}</Badge>;
+}
+
+function severityPointClass(level: HistorySeverity) {
+  if (level === "Critical") return "pointCritical";
+  if (level === "Flood Warning") return "pointWarning";
+  if (level === "Flood Alert") return "pointAlert";
+  if (level === "No reading") return "pointNoReading";
+  return "pointNormal";
 }
 
 function historyRecordKey(reading: FloodHistoryRow, index: number) {

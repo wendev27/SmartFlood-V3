@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { divIcon, type Marker as LeafletMarker } from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { resolveSensorCoordinates, type SensorCoordinates } from "@/lib/sensorMapping";
+import { getFloodStatusClass, getFloodStatusLabel } from "@/lib/statusStyles";
 import styles from "./SensorLeafletMap.module.css";
 
 type SensorLeafletMapProps = {
@@ -70,7 +71,7 @@ export function SensorLeafletMap({ sensors, selectedSensorId, onSensorSelect, fo
                 {sensor.street ? <span>{String(sensor.street)}</span> : null}
                 <span>Device: {String(sensor.status ?? "unknown")}</span>
                 <span>Water: {formatWater(sensor.waterLevelM)}</span>
-                <span>Level: {String(sensor.computedStatus ?? "no_reading")}</span>
+                <span>Level: {getFloodStatusLabel(sensor.computedStatus, sensor.waterLevelM)}</span>
                 <span>Updated: {String(sensor.latestReadingAt ?? sensor.lastSeenAt ?? "No reading")}</span>
               </div>
             </Popup>
@@ -120,12 +121,11 @@ function sensorKey(sensor: Record<string, unknown>, index: number) {
 
 function markerStatus(sensor: Record<string, unknown>) {
   const deviceStatus = String(sensor.status ?? "").toLowerCase();
-  const computedStatus = String(sensor.computedStatus ?? "").toLowerCase();
+  const computedStatus = getFloodStatusClass(sensor.computedStatus, sensor.waterLevelM);
 
   if (deviceStatus === "inactive" || deviceStatus === "offline") return "offline";
-  if (computedStatus.includes("critical")) return "critical";
-  if (computedStatus.includes("warning")) return "warning";
-  return "normal";
+  if (computedStatus === "no_reading") return "offline";
+  return computedStatus;
 }
 
 function sensorIcon(tone: string) {

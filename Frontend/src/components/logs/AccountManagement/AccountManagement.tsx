@@ -347,8 +347,14 @@ export function AccountManagement() {
             <td><Badge tone={statusTone(user.status)}>{statusLabel(user.status)}</Badge></td>
             <td>
               <div className={styles.rowActions}>
-                <button className={styles.previewButton} type="button" onClick={() => setPreviewUser(user)}><span className={styles.view} />Preview</button>
-                <button className={styles.previewButton} type="button" onClick={() => openEditForm(user)}>Edit</button>
+                <button className={styles.actionPill} type="button" onClick={() => setPreviewUser(user)}>
+                  <span className={`${styles.actionIcon} ${styles.eyeIcon}`} aria-hidden="true" />
+                  Preview
+                </button>
+                <button className={styles.actionPill} type="button" onClick={() => openEditForm(user)}>
+                  <span className={`${styles.actionIcon} ${styles.pencilIcon}`} aria-hidden="true" />
+                  Edit
+                </button>
               </div>
             </td>
           </tr>
@@ -442,19 +448,19 @@ export function AccountManagement() {
               <Detail label="Locked Until" value={formatDateTime(previewUser.locked_until, "Not locked")} />
             </dl>
             <div className={styles.previewActions}>
-              <Button size="sm" onClick={() => setPasswordUser(previewUser)}>Change Password</Button>
+              <Button size="sm" onClick={() => setPasswordUser(previewUser)}><span className={`${styles.buttonIcon} ${styles.keyIcon}`} aria-hidden="true" />Change Password</Button>
               {previewUser.status === "active" ? (
-                <Button size="sm" tone="muted" onClick={() => updateStatus(previewUser, "inactive")} disabled={isSubmitting}>Disable Account</Button>
+                <Button size="sm" tone="muted" onClick={() => updateStatus(previewUser, "inactive")} disabled={isSubmitting}><span className={`${styles.buttonIcon} ${styles.powerIcon}`} aria-hidden="true" />Disable Account</Button>
               ) : null}
               {previewUser.status === "inactive" ? (
-                <Button size="sm" tone="success" onClick={() => updateStatus(previewUser, "active")} disabled={isSubmitting}>Enable Account</Button>
+                <Button size="sm" tone="success" onClick={() => updateStatus(previewUser, "active")} disabled={isSubmitting}><span className={`${styles.buttonIcon} ${styles.checkIcon}`} aria-hidden="true" />Enable Account</Button>
               ) : null}
               {previewUser.status !== "blocked" ? (
-                <Button size="sm" tone="danger" onClick={() => updateStatus(previewUser, "blocked")} disabled={isSubmitting}>Block Account</Button>
+                <Button size="sm" tone="danger" onClick={() => updateStatus(previewUser, "blocked")} disabled={isSubmitting}><span className={`${styles.buttonIcon} ${styles.shieldIcon}`} aria-hidden="true" />Block Account</Button>
               ) : (
-                <Button size="sm" tone="success" onClick={() => updateStatus(previewUser, "active")} disabled={isSubmitting}>Unblock Account</Button>
+                <Button size="sm" tone="success" onClick={() => updateStatus(previewUser, "active")} disabled={isSubmitting}><span className={`${styles.buttonIcon} ${styles.checkIcon}`} aria-hidden="true" />Unblock Account</Button>
               )}
-              <Button size="sm" tone="purple" onClick={() => openEditForm(previewUser)}>Edit Account</Button>
+              <Button size="sm" tone="purple" onClick={() => openEditForm(previewUser)}><span className={`${styles.buttonIcon} ${styles.pencilButtonIcon}`} aria-hidden="true" />Edit Account</Button>
             </div>
           </>
         ) : null}

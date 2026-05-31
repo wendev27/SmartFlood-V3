@@ -58,9 +58,10 @@ export function MapPanel({
       <div className={styles.legend}>
         <h3>ALERT STATUS</h3>
         <p><span className={cn(styles.dot, styles.normal)} />Normal</p>
+        <p><span className={cn(styles.dot, styles.alert)} />Alert</p>
         <p><span className={cn(styles.dot, styles.warning)} />Warning</p>
         <p><span className={cn(styles.dot, styles.critical)} />Critical</p>
-        <p><span className={cn(styles.dot, styles.offline)} />Offline</p>
+        <p><span className={cn(styles.dot, styles.offline)} />No reading</p>
       </div>
     </article>
   );

@@ -98,9 +98,21 @@
   transform: translateY(-1px);
 }
 
+.selectedSensor {
+  background: #f0f7ff;
+  border-color: #1a8cff;
+  box-shadow: inset 4px 0 0 #1a8cff, 0 12px 24px rgba(15, 97, 255, 0.14);
+}
+
 .criticalSensor {
   border-color: #fecaca;
   box-shadow: inset 4px 0 0 var(--color-danger), 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+.criticalSensor.selectedSensor {
+  background: #fff7f7;
+  border-color: #1a8cff;
+  box-shadow: inset 4px 0 0 var(--color-danger), 0 0 0 2px rgba(26, 140, 255, 0.22), 0 12px 24px rgba(15, 97, 255, 0.14);
 }
 
 .sensorCardTop {

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { getFloodBadgeTone, getFloodStatusLabel } from "@/lib/statusStyles";
 import { StatCard } from "@/components/ui/StatCard/StatCard";
 import { getSensors } from "@/services/sensorsService";
 import type { DashboardStat } from "@/types/dashboard";
@@ -14,6 +15,7 @@ import styles from "./DashboardPanel.module.css";
 export function DashboardPanel() {
   const [sensorRows, setSensorRows] = useState<Record<string, unknown>[]>([]);
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
+  const [selectedSensorId, setSelectedSensorId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -83,10 +85,17 @@ export function DashboardPanel() {
     window.location.hash = "#sensors";
   }
 
-  function openSensorHistory(sensorId: string) {
-    window.sessionStorage.setItem("smartflood:selectedSensorId", sensorId);
-    window.location.hash = "#sensors";
+  function selectDashboardSensor(sensorId: string) {
+    setSelectedSensorId(sensorId);
+    setShowCriticalOnly(false);
   }
+
+  useEffect(() => {
+    if (!selectedSensorId) return;
+    if (!sensorRows.some((sensor, index) => sensorKey(sensor, index) === selectedSensorId)) {
+      setSelectedSensorId(null);
+    }
+  }, [selectedSensorId, sensorRows]);
 
   return (
     <div className={styles.dashboard}>
@@ -106,6 +115,9 @@ export function DashboardPanel() {
           isLoading={isLoading}
           error={error}
           onRetry={() => loadDashboard()}
+          selectedSensorId={selectedSensorId}
+          onSensorSelect={setSelectedSensorId}
+          focusZoom={18}
         />
       </section>
       <section className={styles.sensorSection} aria-label="Available sensors">
@@ -128,10 +140,11 @@ export function DashboardPanel() {
               const status = sensorStatus(sensor);
               return (
                 <button
-                  className={`${styles.sensorCard} ${level === "Critical" ? styles.criticalSensor : ""}`}
+                  className={`${styles.sensorCard} ${level === "Critical" ? styles.criticalSensor : ""} ${selectedSensorId === key ? styles.selectedSensor : ""}`}
                   key={key}
                   type="button"
-                  onClick={() => openSensorHistory(key)}
+                  aria-pressed={selectedSensorId === key}
+                  onClick={() => selectDashboardSensor(key)}
                 >
                   <div className={styles.sensorCardTop}>
                     <strong>{String(sensor.name || sensor.sensorId || sensor.sensor_id || "Unnamed sensor")}</strong>
@@ -144,7 +157,7 @@ export function DashboardPanel() {
                   </div>
                   <div className={styles.sensorMeta}>
                     <span>Flood Level</span>
-                    <Badge tone={level === "Normal" ? "green" : level === "Warning" ? "yellow" : "red"}>{level}</Badge>
+                    <Badge tone={getFloodBadgeTone(level)}>{level}</Badge>
                   </div>
                   <small>Updated: {formatDateTime(sensor.latestReadingAt ?? sensor.lastSeenAt)}</small>
                 </button>
@@ -169,10 +182,7 @@ function sensorStatus(sensor: Record<string, unknown>) {
 }
 
 function sensorLevel(sensor: Record<string, unknown>) {
-  const status = String(sensor.computedStatus ?? sensor.risk ?? "").toLowerCase();
-  if (status.includes("critical")) return "Critical";
-  if (status.includes("warning")) return "Warning";
-  return "Normal";
+  return getFloodStatusLabel(sensor.computedStatus ?? sensor.risk, sensor.waterLevelM);
 }
 
 function formatWater(value: unknown) {

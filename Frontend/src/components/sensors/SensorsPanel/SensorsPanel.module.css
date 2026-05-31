@@ -112,8 +112,10 @@
 
 @media (min-width: 900px) {
   .panel {
-    max-height: calc(100dvh - 190px);
-    overflow-y: auto;
+    height: auto;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: visible;
   }
 
   .toolbar {
