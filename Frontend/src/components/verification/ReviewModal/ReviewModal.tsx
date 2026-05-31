@@ -1,6 +1,7 @@
 import { Modal } from "@/components/ui/Modal/Modal";
 import { Button } from "@/components/ui/Button/Button";
 import { Badge } from "@/components/ui/Badge/Badge";
+import { formatBarangayName } from "@/lib/formatters";
 import type { VerificationApplication } from "@/types/verification";
 import styles from "./ReviewModal.module.css";
 
@@ -95,7 +96,7 @@ function ReviewSection({ title, fields, columns = 1 }: ReviewSectionProps) {
         {fields.map(([label, value], index) => (
           <div key={`${label}-${index}`} className={index === 3 && fields.length === 4 ? styles.wide : undefined}>
             <span>{label}</span>
-            <b>{value}</b>
+            <b>{formatBarangayName(value)}</b>
           </div>
         ))}
       </div>

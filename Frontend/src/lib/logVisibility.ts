@@ -2,7 +2,9 @@ export type LogRole = "super" | "cswdd" | "cdrrmo" | "barangay";
 
 export type LogViewer = {
   id?: string | null;
+  user_id?: string | null;
   role_id?: number | null;
+  role?: string | null;
   role_name?: string | null;
   role_label?: string | null;
   barangay_id?: number | null;
@@ -13,18 +15,16 @@ export type LogViewer = {
 export type ScopedAuditLog = {
   actor_user_id?: string | null;
   actor_role?: string | null;
+  role?: string | null;
   action?: string | null;
   module?: string | null;
   description?: string | null;
+  department?: string | null;
+  scope?: string | null;
   barangay_id?: number | null;
   barangay_name?: string | null;
+  barangay?: string | null;
 };
-
-const cswddModules = [
-  "ai-optimized relief recommendation",
-  "resident information",
-  "resident account registration management",
-];
 
 const cdrrmoModules = [
   "flood monitoring",
@@ -37,10 +37,10 @@ export function normalizeLogRole(viewer: LogViewer | null | undefined): LogRole 
   if (!viewer) return null;
 
   const roleId = viewer.role_id == null ? "" : String(viewer.role_id);
-  const roleText = normalizeText(`${viewer.role_name ?? ""} ${viewer.role_label ?? ""}`);
+  const roleText = normalizeText(`${viewer.role ?? ""} ${viewer.role_name ?? ""} ${viewer.role_label ?? ""}`);
 
   if (roleId === "1" || roleText.includes("super")) return "super";
-  if (roleId === "2" || /(cdrrmo|ndrrmo|officer|disaster)/.test(roleText)) return "cdrrmo";
+  if (roleId === "2" || /(cdrrmo|ndrrmo)/.test(roleText)) return "cdrrmo";
   if (roleId === "3" || /(cswdd|city welfare|welfare)/.test(roleText)) return "cswdd";
   if (roleId === "4" || roleText.includes("barangay")) return "barangay";
   return null;
@@ -56,14 +56,17 @@ export function filterLogsForViewer<T extends ScopedAuditLog>(logs: T[], viewer:
 
 function canViewLog(log: ScopedAuditLog, viewer: LogViewer, role: Exclude<LogRole, "super">) {
   if (isAuthenticationLog(log)) return isOwnLog(log, viewer);
+  if (isOwnLog(log, viewer)) return true;
   if (role === "barangay") return matchesBarangay(log, viewer);
 
-  const searchable = normalizeText(`${log.module ?? ""} ${log.actor_role ?? ""} ${log.action ?? ""} ${log.description ?? ""}`);
+  const actorRole = normalizeText(log.actor_role ?? log.role);
+  const scope = normalizeText(`${log.department ?? ""} ${log.scope ?? ""}`);
   if (role === "cswdd") {
-    return cswddModules.some((module) => searchable.includes(module))
-      || /(cswdd|city welfare|welfare)/.test(searchable);
+    return /(cswdd|city welfare)/.test(actorRole)
+      || /(cswdd|city welfare)/.test(scope);
   }
 
+  const searchable = normalizeText(`${log.module ?? ""} ${actorRole} ${scope}`);
   return cdrrmoModules.some((module) => searchable.includes(module))
     || /(cdrrmo|ndrrmo|disaster)/.test(searchable);
 }
@@ -73,7 +76,8 @@ function isAuthenticationLog(log: ScopedAuditLog) {
 }
 
 function isOwnLog(log: ScopedAuditLog, viewer: LogViewer) {
-  return Boolean(viewer.id) && String(log.actor_user_id ?? "") === String(viewer.id);
+  const viewerId = String(viewer.id ?? viewer.user_id ?? "");
+  return Boolean(viewerId) && String(log.actor_user_id ?? "") === viewerId;
 }
 
 function matchesBarangay(log: ScopedAuditLog, viewer: LogViewer) {
@@ -82,10 +86,10 @@ function matchesBarangay(log: ScopedAuditLog, viewer: LogViewer) {
   if (viewerBarangayId && viewerBarangayId === logBarangayId) return true;
 
   const viewerBarangayName = normalizeText(viewer.barangay_name ?? viewer.barangay);
-  const logBarangayName = normalizeText(log.barangay_name);
+  const logBarangayName = normalizeText(log.barangay_name ?? log.barangay);
   return Boolean(viewerBarangayName) && viewerBarangayName === logBarangayName;
 }
 
 function normalizeText(value: unknown) {
-  return String(value ?? "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  return String(value ?? "").trim().toLowerCase().replaceAll("ñ", "n").replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }

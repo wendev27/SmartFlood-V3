@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel, type FloodLevel } from "@/lib/statusStyles";
+import { formatBarangayName, formatSensorUpdatedTime } from "@/lib/formatters";
 import { StatCard } from "@/components/ui/StatCard/StatCard";
 import { getSensors } from "@/services/sensorsService";
 import type { DashboardStat } from "@/types/dashboard";
@@ -14,7 +15,7 @@ import styles from "./DashboardPanel.module.css";
 
 export function DashboardPanel() {
   const [sensorRows, setSensorRows] = useState<Record<string, unknown>[]>([]);
-  const [showSeverityOnly, setShowSeverityOnly] = useState(false);
+  const [showSevereOnly, setShowSevereOnly] = useState(false);
   const [selectedSensorId, setSelectedSensorId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -57,7 +58,7 @@ export function DashboardPanel() {
     };
   }, []);
 
-  const severitySensors = useMemo(() => sensorRows.filter((row) => sensorFloodLevel(row) === "severity"), [sensorRows]);
+  const severeSensors = useMemo(() => sensorRows.filter((row) => sensorFloodLevel(row) === "severity"), [sensorRows]);
 
   const simpleStats = useMemo<DashboardStat[]>(() => {
     return [
@@ -69,14 +70,14 @@ export function DashboardPanel() {
         captionTone: "info",
       },
       {
-        label: "Severity Alerts",
-        value: isLoading ? "..." : String(severitySensors.length),
-        caption: showSeverityOnly ? "Showing severity sensors" : "View severity sensors",
+        label: "Severe Alerts",
+        value: isLoading ? "..." : String(severeSensors.length),
+        caption: showSevereOnly ? "Showing severe sensors" : "View severe sensors",
         tone: "cyan",
-        captionTone: severitySensors.length > 0 ? "danger" : "success",
+        captionTone: severeSensors.length > 0 ? "danger" : "success",
       },
     ];
-  }, [isLoading, sensorRows.length, severitySensors.length, showSeverityOnly]);
+  }, [isLoading, sensorRows.length, severeSensors.length, showSevereOnly]);
 
   function openSensorManagement() {
     window.location.hash = "#sensors";
@@ -84,7 +85,7 @@ export function DashboardPanel() {
 
   function selectDashboardSensor(sensorId: string) {
     setSelectedSensorId(sensorId);
-    setShowSeverityOnly(false);
+    setShowSevereOnly(false);
   }
 
   useEffect(() => {
@@ -99,16 +100,16 @@ export function DashboardPanel() {
       <section className={styles.statsGrid} aria-label="Dashboard statistics">
         {simpleStats.map((stat, index) => (
           <StatCard
-            isActive={index === 1 && showSeverityOnly}
+            isActive={index === 1 && showSevereOnly}
             key={stat.label}
-            onClick={index === 0 ? openSensorManagement : () => setShowSeverityOnly((current) => !current)}
+            onClick={index === 0 ? openSensorManagement : () => setShowSevereOnly((current) => !current)}
             stat={stat}
           />
         ))}
       </section>
       <section className={styles.mapSection}>
         <MapPanel
-          sensors={showSeverityOnly ? severitySensors : sensorRows}
+          sensors={showSevereOnly ? severeSensors : sensorRows}
           isLoading={isLoading}
           error={error}
           onRetry={() => loadDashboard()}
@@ -148,7 +149,7 @@ export function DashboardPanel() {
                     <strong>{String(sensor.name || sensor.sensorId || sensor.sensor_id || "Unnamed sensor")}</strong>
                     <Badge tone={status === "Active" ? "green" : status === "Inactive" ? "yellow" : "red"}>{status}</Badge>
                   </div>
-                  <span>{String(sensor.barangayName ?? sensor.barangay ?? "Unknown barangay")}</span>
+                  <span>{formatBarangayName(String(sensor.barangayName ?? sensor.barangay ?? "Unknown barangay"))}</span>
                   <div className={styles.sensorMeta}>
                     <span>Reading</span>
                     <b className={styles[`${floodLevel}Reading`]}>{formatWater(sensor.waterLevelM)}</b>
@@ -157,7 +158,7 @@ export function DashboardPanel() {
                     <span>Flood Level</span>
                     <Badge tone={getFloodBadgeTone(level)}>{level}</Badge>
                   </div>
-                  <small>Updated: {formatDateTime(sensor.latestReadingAt ?? sensor.lastSeenAt)}</small>
+                  <small>Updated: {formatSensorUpdatedTime(sensorUpdatedAt(sensor))}</small>
                 </button>
               );
             })}
@@ -192,8 +193,6 @@ function formatWater(value: unknown) {
   return Number.isFinite(parsed) ? `${parsed.toFixed(2)}m` : "No reading";
 }
 
-function formatDateTime(value: unknown) {
-  if (!value) return "No reading";
-  const date = new Date(String(value));
-  return Number.isNaN(date.getTime()) ? String(value) : `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+function sensorUpdatedAt(sensor: Record<string, unknown>) {
+  return (sensor.latestReadingAt ?? sensor.lastSeenAt ?? sensor.updatedAt) as string | Date | null | undefined;
 }

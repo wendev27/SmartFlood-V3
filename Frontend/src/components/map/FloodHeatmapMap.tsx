@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
 import { getFloodStatusColor, getFloodStatusLabel } from "@/lib/statusStyles";
+import { formatBarangayName, formatSensorUpdatedTime } from "@/lib/formatters";
 import type { FloodHistoryRow } from "@/services/floodService";
 import styles from "./FloodHeatmapMap.module.css";
 
@@ -49,11 +50,11 @@ export function FloodHeatmapMap({ readings }: FloodHeatmapMapProps) {
               <div className={styles.popup}>
                 <strong>{reading.sensorName}</strong>
                 <span>{reading.sensorId}</span>
-                <span>{reading.barangayName}</span>
+                <span>{formatBarangayName(reading.barangayName)}</span>
                 {reading.street ? <span>{reading.street}</span> : null}
                 <span>Water: <b style={{ color: tone }}>{formatWaterLevel(reading.waterLevelM)}</b></span>
                 <span>Level: <b style={{ color: tone }}>{getFloodStatusLabel(reading.computedStatus, reading.waterLevelM)}</b></span>
-                <span>Updated: {formatTimestamp(reading.createdAt)}</span>
+                <span>Updated: {formatSensorUpdatedTime(reading.createdAt)}</span>
               </div>
             </Popup>
           </CircleMarker>
@@ -65,11 +66,4 @@ export function FloodHeatmapMap({ readings }: FloodHeatmapMapProps) {
 
 function formatWaterLevel(value: number | null) {
   return value == null ? "No reading" : `${value.toFixed(2)}m`;
-}
-
-function formatTimestamp(value: string | null) {
-  if (!value) return "No reading";
-
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }

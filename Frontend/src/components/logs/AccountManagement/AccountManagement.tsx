@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { withAuditActor } from "@/lib/auditClient";
+import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { fetchJson } from "@/services/apiClient";
 import { getAccountUsers } from "@/services/logsService";
 import styles from "./AccountManagement.module.css";
@@ -131,7 +132,7 @@ export function AccountManagement() {
   }, [users]);
 
   const displayedUsers = useMemo(() => users.filter((user) => {
-    const normalizedSearch = search.trim().toLowerCase();
+    const normalizedSearch = normalizeBarangayForCompare(search);
     const normalizedStatus = statusLabel(user.status);
     const matchesSearch = !normalizedSearch || [
       user.first_name,
@@ -144,10 +145,10 @@ export function AccountManagement() {
       user.department,
       user.barangay_name,
       normalizedStatus,
-    ].some((value) => value.toLowerCase().includes(normalizedSearch));
+    ].some((value) => normalizeBarangayForCompare(value).includes(normalizedSearch));
 
     return matchesSearch
-      && (!departmentFilter || user.department === departmentFilter)
+      && (!departmentFilter || normalizeBarangayForCompare(user.department) === normalizeBarangayForCompare(departmentFilter))
       && (!roleFilter || user.role_label === roleFilter)
       && (!statusFilter || user.status === statusFilter);
   }), [departmentFilter, roleFilter, search, statusFilter, users]);
@@ -324,7 +325,7 @@ export function AccountManagement() {
         </label>
         <select aria-label="Department" value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)}>
           <option value="">All Departments</option>
-          {departmentOptions.map((department) => <option key={department} value={department}>{department}</option>)}
+          {departmentOptions.map((department) => <option key={department} value={department}>{formatBarangayName(department)}</option>)}
         </select>
         <select aria-label="Role" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
           <option value="">All Roles</option>
@@ -353,7 +354,7 @@ export function AccountManagement() {
               <a className={styles.emailLink} href={`mailto:${user.email}`}>{user.email}</a>
             </td>
             <td>{user.role_label}</td>
-            <td><Badge tone={departmentTone(user.department)}>{user.department}</Badge></td>
+            <td><Badge tone={departmentTone(user.department)}>{formatBarangayName(user.department)}</Badge></td>
             <td><Badge tone={statusTone(user.status)}>{statusLabel(user.status)}</Badge></td>
             <td>
               <div className={styles.rowActions}>
@@ -415,7 +416,7 @@ export function AccountManagement() {
             </select></label>
             <label>Department / Barangay<select value={form.barangay_id} onChange={(event) => updateForm("barangay_id", event.target.value)}>
               <option value="">No barangay</option>
-              {barangayOptions.map((barangay) => <option key={barangay.id} value={barangay.id}>{barangay.label}</option>)}
+              {barangayOptions.map((barangay) => <option key={barangay.id} value={barangay.id}>{formatBarangayName(barangay.label)}</option>)}
             </select></label>
             <label>Sex<select value={form.sex} onChange={(event) => updateForm("sex", event.target.value)}>
               <option value="">Not specified</option>
@@ -515,7 +516,7 @@ function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt>{label}</dt>
-      <dd>{value}</dd>
+      <dd>{formatBarangayName(value)}</dd>
     </div>
   );
 }

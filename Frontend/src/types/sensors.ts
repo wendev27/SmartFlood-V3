@@ -4,5 +4,5 @@ export interface SensorReading {
   coordinates: string;
   status: "Active" | "Degraded" | "Offline";
   latestReading: string;
-  level: "Normal" | "Flood Alert" | "Flood Warning" | "Severity";
+  level: "Normal" | "Flood Alert" | "Flood Warning" | "Severe";
 }

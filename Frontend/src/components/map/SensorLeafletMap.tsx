@@ -5,6 +5,7 @@ import { divIcon, type Marker as LeafletMarker } from "leaflet";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { resolveSensorCoordinates, type SensorCoordinates } from "@/lib/sensorMapping";
 import { getFloodStatusClass, getFloodStatusColor, getFloodStatusLabel } from "@/lib/statusStyles";
+import { formatBarangayName, formatSensorUpdatedTime } from "@/lib/formatters";
 import styles from "./SensorLeafletMap.module.css";
 
 type SensorLeafletMapProps = {
@@ -68,12 +69,12 @@ export function SensorLeafletMap({ sensors, selectedSensorId, onSensorSelect, fo
               <div className={styles.popup}>
                 <strong>{String(sensor.name || "Unnamed sensor")}</strong>
                 <span>{String(sensor.sensorId ?? sensor.sensor_id ?? sensor._id ?? "No sensor ID")}</span>
-                <span>{String(sensor.barangayName ?? sensor.barangay ?? "Unknown barangay")}</span>
+                <span>{formatBarangayName(String(sensor.barangayName ?? sensor.barangay ?? "Unknown barangay"))}</span>
                 {sensor.street ? <span>{String(sensor.street)}</span> : null}
                 <span>Device: {String(sensor.status ?? "unknown")}</span>
                 <span>Water: <b style={{ color: floodColor }}>{formatWater(sensor.waterLevelM)}</b></span>
                 <span>Level: <b style={{ color: floodColor }}>{getFloodStatusLabel(sensor.computedStatus, sensor.waterLevelM)}</b></span>
-                <span>Updated: {String(sensor.latestReadingAt ?? sensor.lastSeenAt ?? "No reading")}</span>
+                <span>Updated: {formatSensorUpdatedTime(sensorUpdatedAt(sensor))}</span>
               </div>
             </Popup>
           </Marker>
@@ -137,4 +138,8 @@ function sensorIcon(tone: string) {
 function formatWater(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? `${parsed.toFixed(2)}m` : "No reading";
+}
+
+function sensorUpdatedAt(sensor: Record<string, unknown>) {
+  return (sensor.latestReadingAt ?? sensor.lastSeenAt ?? sensor.updatedAt) as string | Date | null | undefined;
 }

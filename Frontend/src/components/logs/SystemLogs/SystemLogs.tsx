@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { getCurrentUser, logLabelForRole, normalizeUserRole } from "@/lib/authSession";
 import { cn } from "@/lib/cn";
+import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { filterLogsForViewer } from "@/lib/logVisibility";
 import { getAuditLogs } from "@/services/logsService";
 import type { AuditLog } from "@/types/logs";
@@ -20,6 +21,7 @@ export function SystemLogs() {
   const user = getCurrentUser();
   const role = normalizeUserRole(user) ?? "barangay";
   const title = logLabelForRole(role);
+  const emptyMessage = role === "cswdd" ? "No CSWDD logs found." : "No logs available for your role or assigned barangay.";
 
   useEffect(() => {
     let cancelled = false;
@@ -48,9 +50,9 @@ export function SystemLogs() {
   const actionOptions = useMemo(() => unique(roleScopedLogs.map((log) => log.action)), [roleScopedLogs]);
 
   const logs = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = normalizeBarangayForCompare(query);
     return roleScopedLogs.filter((log) => {
-      const matchesQuery = !normalizedQuery || [
+      const searchable = [
         log.actor_name,
         log.actor_role,
         log.action,
@@ -58,7 +60,8 @@ export function SystemLogs() {
         log.description,
         log.barangay_name,
         log.created_at,
-      ].join(" ").toLowerCase().includes(normalizedQuery);
+      ].join(" ");
+      const matchesQuery = !normalizedQuery || normalizeBarangayForCompare(searchable).includes(normalizedQuery);
       return matchesQuery
         && (!moduleFilter || log.module === moduleFilter)
         && (!actionFilter || log.action === actionFilter);
@@ -105,7 +108,7 @@ export function SystemLogs() {
             {logs.map((log) => (
               <tr key={log.log_id ?? `${log.created_at}-${log.action}`}>
                 <td>{formatDateTime(log.created_at ?? "")}</td>
-                <td>{log.actor_name || "-"}</td>
+                <td>{formatBarangayName(log.actor_name || "-")}</td>
                 <td>{log.actor_role || "-"}</td>
                 <td><span className={cn(styles.action, styles[getActionTone(log.action)])}>{log.action}</span></td>
                 <td>{log.module ?? "-"}</td>
@@ -119,7 +122,7 @@ export function SystemLogs() {
             ) : null}
             {!isLoading && logs.length === 0 ? (
               <tr>
-                <td className={styles.empty} colSpan={6}>No logs available for your role or assigned barangay.</td>
+                <td className={styles.empty} colSpan={6}>{emptyMessage}</td>
               </tr>
             ) : null}
           </tbody>
@@ -167,7 +170,7 @@ function Detail({ label, value, wide = false }: { label: string; value: string; 
   return (
     <div className={wide ? styles.wideDetail : undefined}>
       <dt>{label}</dt>
-      <dd>{value}</dd>
+      <dd>{formatBarangayName(value)}</dd>
     </div>
   );
 }
