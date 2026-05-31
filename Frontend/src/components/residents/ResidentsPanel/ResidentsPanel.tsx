@@ -10,6 +10,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { getCurrentUser, type StoredSessionUser } from "@/lib/authSession";
+import { assignedBarangayForUser, isSameBarangayForUser } from "@/lib/barangayScope";
 import { fetchJson } from "@/services/apiClient";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import styles from "./ResidentsPanel.module.css";
@@ -35,6 +36,7 @@ type ResidentRow = {
 
 type FamilyRow = {
   family_id?: string;
+  barangay_id?: number | string;
   familyName: string;
   familyHead: string;
   barangay: string;
@@ -113,9 +115,11 @@ const vulnerabilityCountFields = [
 ] as const;
 
 export function ResidentsPanel() {
-  const currentUser = getCurrentUser();
+  const [currentUser] = useState(() => getCurrentUser());
   const canViewResidentInfo = canViewResidents(currentUser);
   const canManageResidentRecords = canManageResidents(currentUser);
+  const isBarangayOfficial = isBarangayUser(currentUser);
+  const assignedBarangay = assignedBarangayForUser(currentUser);
   const [residents, setResidents] = useState<ResidentRow[]>([]);
   const [familyClusters, setFamilyClusters] = useState<FamilyRow[]>([]);
   const [residentSearch, setResidentSearch] = useState("");
@@ -180,26 +184,26 @@ export function ResidentsPanel() {
     setResidentsError("");
     try {
       const data = await fetchJson<Record<string, unknown>[]>("/api/residents");
-      setResidents(data.map(mapResident));
+      setResidents(filterRecordsForUser(data.map(mapResident), currentUser));
     } catch (error) {
       setResidentsError(error instanceof Error ? error.message : "Unable to load residents.");
     } finally {
       setIsResidentsLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   const refreshFamilies = useCallback(async () => {
     setIsFamiliesLoading(true);
     setFamiliesError("");
     try {
       const data = await fetchJson<Record<string, unknown>[]>("/api/families");
-      setFamilyClusters(data.map(mapFamily));
+      setFamilyClusters(filterRecordsForUser(data.map(mapFamily), currentUser));
     } catch (error) {
       setFamiliesError(error instanceof Error ? error.message : "Unable to load family clusters.");
     } finally {
       setIsFamiliesLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,7 +213,7 @@ export function ResidentsPanel() {
       setResidentsError("");
       try {
         const data = await fetchJson<Record<string, unknown>[]>("/api/residents");
-        if (!cancelled) setResidents(data.map(mapResident));
+        if (!cancelled) setResidents(filterRecordsForUser(data.map(mapResident), currentUser));
       } catch (error) {
         if (!cancelled) setResidentsError(error instanceof Error ? error.message : "Unable to load residents.");
       } finally {
@@ -221,7 +225,7 @@ export function ResidentsPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     let cancelled = false;
@@ -231,7 +235,7 @@ export function ResidentsPanel() {
       setFamiliesError("");
       try {
         const data = await fetchJson<Record<string, unknown>[]>("/api/families");
-        if (!cancelled) setFamilyClusters(data.map(mapFamily));
+        if (!cancelled) setFamilyClusters(filterRecordsForUser(data.map(mapFamily), currentUser));
       } catch (error) {
         if (!cancelled) setFamiliesError(error instanceof Error ? error.message : "Unable to load family clusters.");
       } finally {
@@ -243,20 +247,32 @@ export function ResidentsPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentUser]);
 
   function openAddResident() {
     if (!canManageResidentRecords) return;
     setResidentModalMode("add");
     setEditingResidentId(null);
-    setResidentForm(emptyResidentForm);
+    setResidentForm(residentFormForUser(currentUser));
     setFormError("");
     setIsResidentModalOpen(true);
   }
 
   function openEditResident(resident: ResidentRow) {
     if (!canManageResidentRecords) return;
-    const normalizedBarangay = normalizeBarangay(resident.barangay ?? "", resident.barangay_id ? String(resident.barangay_id) : "");
+    if (isBarangayOfficial && !isSameBarangayForUser(currentUser, resident)) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Resident Cannot Be Edited",
+        description: "Barangay Officials can only edit residents assigned to their own barangay.",
+        details: "Open a resident record from your assigned barangay and try again.",
+      });
+      return;
+    }
+    const normalizedBarangay = isBarangayOfficial && assignedBarangay
+      ? normalizeBarangay(assignedBarangay.barangay_name, String(assignedBarangay.barangay_id))
+      : normalizeBarangay(resident.barangay ?? "", resident.barangay_id ? String(resident.barangay_id) : "");
     const family = familyClusters.find((cluster) => cluster.family_id === resident.family_id);
     setResidentModalMode("edit");
     setEditingResidentId(resident.resident_id ?? null);
@@ -300,6 +316,7 @@ export function ResidentsPanel() {
   }
 
   function handleBarangayChange(value: string) {
+    if (isBarangayOfficial) return;
     const barangay = barangays.find((item) => item.id === value);
     updateForm("barangay_id", value);
     updateForm("barangay_name", barangay?.name ?? "");
@@ -317,7 +334,9 @@ export function ResidentsPanel() {
       return;
     }
 
-    const normalizedBarangay = normalizeBarangay(residentForm.barangay_name, residentForm.barangay_id);
+    const normalizedBarangay = isBarangayOfficial && assignedBarangay
+      ? normalizeBarangay(assignedBarangay.barangay_name, String(assignedBarangay.barangay_id))
+      : normalizeBarangay(residentForm.barangay_name, residentForm.barangay_id);
     const validationError = validateResidentForm(residentForm, normalizedBarangay);
     if (validationError) {
       setFormError(validationError);
@@ -442,7 +461,7 @@ export function ResidentsPanel() {
                       <td>{formatBarangayName(resident.barangay)}</td>
                       <td>{resident.contact}</td>
                       <td>
-                        {canManageResidentRecords ? (
+                        {canManageResidentRecords && (!isBarangayOfficial || isSameBarangayForUser(currentUser, resident)) ? (
                           <button className={styles.editButton} type="button" onClick={() => openEditResident(resident)}>
                             <span aria-hidden="true">/</span>
                             Edit
@@ -634,7 +653,7 @@ export function ResidentsPanel() {
               </label>
               <label>
                 Barangay
-                <select value={residentForm.barangay_id} onChange={(event) => handleBarangayChange(event.target.value)}>
+                <select disabled={isBarangayOfficial} value={residentForm.barangay_id} onChange={(event) => handleBarangayChange(event.target.value)}>
                   <option value="">Select barangay</option>
                   {barangays.map((barangay, index) => (
                     <option key={barangay.id || `${barangay.name}-${index}`} value={barangay.id}>{formatBarangayName(barangay.name)}</option>
@@ -843,6 +862,7 @@ function mapResident(row: Record<string, unknown>): ResidentRow {
 function mapFamily(row: Record<string, unknown>): FamilyRow {
   return {
     family_id: row.family_id ? String(row.family_id) : undefined,
+    barangay_id: row.barangay_id ? String(row.barangay_id) : undefined,
     familyName: String(row.family_name ?? ""),
     familyHead: String(row.family_head_name ?? ""),
     barangay: String(row.barangay_name ?? ""),
@@ -874,6 +894,11 @@ function canManageResidents(user: StoredSessionUser | null) {
   if (roleId === 4 || role.includes("barangay")) return true;
 
   return false;
+}
+
+function isBarangayUser(user: StoredSessionUser | null) {
+  const role = residentRoleText(user);
+  return Number(user?.role_id) === 4 || role.includes("barangay");
 }
 
 function canViewResidents(user: StoredSessionUser | null) {
@@ -976,6 +1001,21 @@ function normalizeBarangay(barangayName: string, barangayId: string) {
 
   const normalizedName = normalizeBarangayForCompare(barangayName).replace(/^barangay\s+/, "");
   return barangays.find((barangay) => normalizeBarangayForCompare(barangay.name).replace(/^barangay\s+/, "") === normalizedName);
+}
+
+function residentFormForUser(user: StoredSessionUser | null): ResidentFormState {
+  const barangay = isBarangayUser(user) ? assignedBarangayForUser(user) : null;
+  if (!barangay) return emptyResidentForm;
+
+  return {
+    ...emptyResidentForm,
+    barangay_id: String(barangay.barangay_id),
+    barangay_name: barangay.barangay_name,
+  };
+}
+
+function filterRecordsForUser<T extends { barangay_id?: unknown; barangay?: unknown }>(records: T[], user: StoredSessionUser | null) {
+  return isBarangayUser(user) ? records.filter((record) => isSameBarangayForUser(user, record)) : records;
 }
 
 function buildResidentPayload(form: ResidentFormState, barangay: { id: string; name: string }) {

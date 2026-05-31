@@ -1,3 +1,5 @@
+import { isSameBarangayForUser } from "@/lib/barangayScope";
+
 export type LogRole = "super" | "cswdd" | "cdrrmo" | "barangay";
 
 export type LogViewer = {
@@ -56,13 +58,13 @@ export function filterLogsForViewer<T extends ScopedAuditLog>(logs: T[], viewer:
 
 function canViewLog(log: ScopedAuditLog, viewer: LogViewer, role: Exclude<LogRole, "super">) {
   if (isAuthenticationLog(log)) return isOwnLog(log, viewer);
-  if (isOwnLog(log, viewer)) return true;
-  if (role === "barangay") return matchesBarangay(log, viewer);
+  if (role === "barangay") return isSameBarangayForUser(viewer, log);
 
   const actorRole = normalizeText(log.actor_role ?? log.role);
   const scope = normalizeText(`${log.department ?? ""} ${log.scope ?? ""}`);
   if (role === "cswdd") {
-    return /(cswdd|city welfare)/.test(actorRole)
+    return isOwnLog(log, viewer)
+      || /(cswdd|city welfare)/.test(actorRole)
       || /(cswdd|city welfare)/.test(scope);
   }
 
@@ -78,16 +80,6 @@ function isAuthenticationLog(log: ScopedAuditLog) {
 function isOwnLog(log: ScopedAuditLog, viewer: LogViewer) {
   const viewerId = String(viewer.id ?? viewer.user_id ?? "");
   return Boolean(viewerId) && String(log.actor_user_id ?? "") === viewerId;
-}
-
-function matchesBarangay(log: ScopedAuditLog, viewer: LogViewer) {
-  const viewerBarangayId = viewer.barangay_id == null ? "" : String(viewer.barangay_id);
-  const logBarangayId = log.barangay_id == null ? "" : String(log.barangay_id);
-  if (viewerBarangayId && viewerBarangayId === logBarangayId) return true;
-
-  const viewerBarangayName = normalizeText(viewer.barangay_name ?? viewer.barangay);
-  const logBarangayName = normalizeText(log.barangay_name ?? log.barangay);
-  return Boolean(viewerBarangayName) && viewerBarangayName === logBarangayName;
 }
 
 function normalizeText(value: unknown) {

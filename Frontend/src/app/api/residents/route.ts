@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
+import { assignedBarangayForUser, isSameBarangayForUser } from "@/lib/barangayScope";
+import { logAuditEvent } from "@/lib/auditLogger";
+import { auditActorForViewer, dashboardViewerRole, getDashboardViewer, type DashboardViewer } from "@/lib/dashboardViewer";
 import { fullName, familyVulnerabilityPayload, pickResidentPayload } from "@/lib/residentPayload";
 import { supabaseServer } from "@/lib/supabaseServer";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const viewer = await getDashboardViewer(req);
+    const role = dashboardViewerRole(viewer);
+    if (!viewer) return unauthorized();
+    if (role !== "super" && role !== "cswdd" && role !== "barangay") return forbidden();
+
     const { data, error } = await supabaseServer
       .from("residents_v3")
       .select("resident_id,last_name,first_name,middle_name,suffix,age,sex,contact_number,complete_address,street,barangay_id,barangay_name,is_family_head,family_id,status,created_at,updated_at")
@@ -12,7 +19,7 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data: role === "barangay" ? (data ?? []).filter((resident: Record<string, unknown>) => isSameBarangayForUser(viewer, resident)) : data });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
@@ -20,7 +27,14 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const viewer = await getDashboardViewer(req);
+    const role = dashboardViewerRole(viewer);
+    if (!viewer) return unauthorized();
+    if (role !== "super" && role !== "barangay") return forbidden();
+
+    const requestBody = await req.json();
+    const body = scopedResidentBody(requestBody, viewer, role);
+    if (!body) return forbidden("Barangay assignment is required for this account.");
 
     if (!body.last_name || !body.first_name || !body.complete_address || !body.barangay_id || !body.barangay_name) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 });
@@ -40,8 +54,8 @@ export async function POST(req: NextRequest) {
         .from("families")
         .insert([{
           family_name,
-          barangay_id: body.barangay_id,
-          barangay_name: body.barangay_name,
+          barangay_id: Number(body.barangay_id),
+          barangay_name: String(body.barangay_name),
           complete_address: body.complete_address,
           street: body.street,
           created_by: body.created_by ?? null,
@@ -67,7 +81,7 @@ export async function POST(req: NextRequest) {
 
       if (residentUpdateError) return NextResponse.json({ success: false, error: residentUpdateError.message }, { status: 500 });
 
-      const actor = auditActorFromBody(body);
+      const actor = auditActorForViewer(viewer);
       await logAuditEvent({
         ...actor,
         action: "RESIDENT_CREATED",
@@ -75,8 +89,8 @@ export async function POST(req: NextRequest) {
         description: `Created resident record for ${fullName(body)}.`,
         target_type: "resident",
         target_id: String(resident.resident_id),
-        barangay_id: body.barangay_id,
-        barangay_name: body.barangay_name,
+        barangay_id: Number(body.barangay_id),
+        barangay_name: String(body.barangay_name),
       });
       await logAuditEvent({
         ...actor,
@@ -85,8 +99,8 @@ export async function POST(req: NextRequest) {
         description: `Created family cluster and vulnerability counts for ${family_name}.`,
         target_type: "family",
         target_id: String(family.family_id),
-        barangay_id: body.barangay_id,
-        barangay_name: body.barangay_name,
+        barangay_id: Number(body.barangay_id),
+        barangay_name: String(body.barangay_name),
       });
 
       return NextResponse.json({
@@ -104,6 +118,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "selected_family_id or family_id is required for non-family-head" }, { status: 400 });
     }
 
+    const familyScopeError = await validateFamilyScope(familyId, body);
+    if (familyScopeError) return familyScopeError;
+
     const { data: resident, error: residentError } = await supabaseServer
       .from("residents_v3")
       .insert([{ ...pickResidentPayload(body, familyId), status: body.status ?? "active" }])
@@ -113,18 +130,55 @@ export async function POST(req: NextRequest) {
     if (residentError) return NextResponse.json({ success: false, error: residentError.message }, { status: 500 });
 
     await logAuditEvent({
-      ...auditActorFromBody(body),
+      ...auditActorForViewer(viewer),
       action: "RESIDENT_CREATED",
       module: "Resident Information",
       description: `Created resident record for ${fullName(body)}.`,
       target_type: "resident",
       target_id: String(resident.resident_id),
-      barangay_id: body.barangay_id,
-      barangay_name: body.barangay_name,
+      barangay_id: Number(body.barangay_id),
+      barangay_name: String(body.barangay_name),
     });
 
     return NextResponse.json({ success: true, data: { resident } }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
+}
+
+function scopedResidentBody(body: Record<string, unknown>, viewer: DashboardViewer, role: string | null) {
+  if (role !== "barangay") return body;
+
+  const barangay = assignedBarangayForUser(viewer);
+  if (!barangay) return null;
+  return {
+    ...body,
+    barangay_id: barangay.barangay_id,
+    barangay_name: barangay.barangay_name,
+    created_by: viewer.id,
+  };
+}
+
+async function validateFamilyScope(familyId: unknown, resident: Record<string, unknown>) {
+  const { data: family, error } = await supabaseServer
+    .from("families")
+    .select("family_id,barangay_id,barangay_name")
+    .eq("family_id", familyId)
+    .single();
+
+  if (error || !family) {
+    return NextResponse.json({ success: false, error: "Selected family cluster was not found." }, { status: 400 });
+  }
+  if (!isSameBarangayForUser(resident, family)) {
+    return NextResponse.json({ success: false, error: "Selected family cluster must belong to the resident barangay." }, { status: 403 });
+  }
+  return null;
+}
+
+function unauthorized() {
+  return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+}
+
+function forbidden(error = "You do not have access to manage resident records.") {
+  return NextResponse.json({ success: false, error }, { status: 403 });
 }
