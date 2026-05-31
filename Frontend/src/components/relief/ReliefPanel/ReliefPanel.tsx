@@ -411,12 +411,28 @@ export function ReliefPanel() {
                   Normal is below alert threshold, Flood Alert is around 0.25m to 0.50m, Flood Warning is around 0.75m to 1.00m, and Severity is around 1.20m to 1.50m.
                   {!selectedReport.hasSensorReading ? " No latest sensor reading was available, so the recommendation relied more heavily on family vulnerability data." : ""}
                 </p>
+                <dl className={styles.reportGrid}>
+                  <ReportDetail label="Fuzzy Risk Label" value={selectedReport.fuzzyExplanation?.riskLabel ?? selectedReport.riskLevel} />
+                  <ReportDetail label="Water Level" value={formatWaterLevel(selectedReport.fuzzyExplanation?.waterLevelM)} />
+                  <ReportDetail label="Fuzzy Confidence" value={formatConfidence(selectedReport.fuzzyExplanation?.confidence)} />
+                </dl>
               </section>
               <section className={styles.reportSection}>
                 <h4>AHP-inspired Vulnerability Explanation</h4>
                 <p>
                   The recommendation applies AHP-inspired vulnerability weighting using household factors such as PWD, elderly, 4Ps, lactating, pregnant, infant, toddler, and total family members. These factors help prioritize barangays with more vulnerable residents.
                 </p>
+                <dl className={styles.reportGrid}>
+                  <ReportDetail label="AHP Vulnerability Score" value={formatNumber(selectedReport.ahpVulnerabilityScore)} />
+                </dl>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>AI Reasoning Steps</h4>
+                {(selectedReport.reasoningSteps?.length ?? 0) > 0 ? (
+                  <ol className={styles.reasoningList}>
+                    {selectedReport.reasoningSteps?.map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}
+                  </ol>
+                ) : <p>No detailed reasoning steps were returned for this historical recommendation.</p>}
               </section>
               <section className={styles.reportSection}>
                 <h4>Inventory Constraint Explanation</h4>
@@ -523,6 +539,8 @@ function mapRecommendation(row: Record<string, unknown>, index: number): ReliefR
   const riskLevel = formatRiskLevel(rawRisk || riskFromReason(analysisReason));
   const hasSensorReading = rawRisk !== "no_reading" && !/^No latest sensor reading/i.test(analysisReason);
   const hasAllocation = foodPacks + medicineKits + individualGoods > 0;
+  const fuzzyExplanation = asRecord(row.fuzzy_explanation);
+  const ahpBreakdown = asRecord(row.ahp_breakdown);
 
   return {
     recommendation_id: row.recommendation_id ? String(row.recommendation_id) : undefined,
@@ -540,6 +558,13 @@ function mapRecommendation(row: Record<string, unknown>, index: number): ReliefR
       : "Inventory fully allocated to higher-priority areas.",
     analysisReason,
     report: analysisReason,
+    fuzzyExplanation: fuzzyExplanation ? {
+      waterLevelM: nullableNumber(fuzzyExplanation.water_level_m),
+      confidence: nullableNumber(fuzzyExplanation.confidence),
+      riskLabel: formatRiskLevel(String(fuzzyExplanation.risk_label ?? fuzzyExplanation.risk_level ?? riskLevel)),
+    } : undefined,
+    ahpVulnerabilityScore: nullableNumber(ahpBreakdown?.total_vulnerability_score),
+    reasoningSteps: Array.isArray(row.reasoning_steps) ? row.reasoning_steps.map(String).filter(Boolean) : [],
   };
 }
 
@@ -570,6 +595,28 @@ function ReportDetail({ label, value }: { label: string; value: string | number 
       <dd>{value}</dd>
     </div>
   );
+}
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function nullableNumber(value: unknown) {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatWaterLevel(value: number | null | undefined) {
+  return value == null ? "Unavailable" : `${value.toFixed(2)}m`;
+}
+
+function formatConfidence(value: number | null | undefined) {
+  return value == null ? "Unavailable" : `${Math.round(value * 100)}%`;
+}
+
+function formatNumber(value: number | null | undefined) {
+  return value == null ? "Unavailable" : value.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
 function fallbackAnalysisReason(row: Record<string, unknown>) {
