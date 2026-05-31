@@ -18,7 +18,7 @@ export function AuditLogs() {
       setIsLoading(true);
       const data = await getAuditLogs();
       if (!cancelled) {
-        setLogs(data as AuditLog[]);
+        setLogs(data as unknown as AuditLog[]);
         setIsLoading(false);
       }
     }
@@ -33,24 +33,24 @@ export function AuditLogs() {
     <article className={styles.card}>
       <div className={styles.logList} aria-label="Audit log events">
         {logs.map((log, index) => (
-          <section className={cn(styles.logItem, styles[log.tone])} key={`${log.timestamp}-${log.title}-${index}`}>
+          <section className={cn(styles.logItem, log.tone && styles[log.tone])} key={`${log.timestamp ?? log.created_at}-${log.title ?? log.action}-${index}`}>
             <span className={styles.logIcon}>
-              <SmartFloodIcon name={auditIconMap[log.title] ?? "alertLevelUpdate"} size={20} />
+              <SmartFloodIcon name={auditIconMap[log.title ?? log.action] ?? "alertLevelUpdate"} size={20} />
             </span>
             <div className={styles.logBody}>
               <div className={styles.logMeta}>
-                <strong>{log.title}</strong>
-                <span>{log.category}</span>
-                <span>{log.department}</span>
+                <strong>{log.title ?? log.action}</strong>
+                <span>{log.category ?? log.module}</span>
+                <span>{log.department ?? log.actor_role}</span>
               </div>
               <p>{log.description}</p>
               <small>{log.action}</small>
               <div className={styles.trace}>
-                <span>{log.timestamp}</span>
-                <span>IP: {log.ipAddress}</span>
+                <span>{log.timestamp ?? log.created_at}</span>
+                <span>Target: {log.target_id ?? log.ipAddress ?? "-"}</span>
               </div>
             </div>
-            <span className={cn(styles.status, log.status === "Failed" && styles.failed)}>{log.status}</span>
+            <span className={cn(styles.status, log.status === "Failed" && styles.failed)}>{log.status ?? "Success"}</span>
           </section>
         ))}
         {isLoading ? <p className={styles.empty}>Loading audit logs...</p> : null}
@@ -60,7 +60,7 @@ export function AuditLogs() {
   );
 }
 
-const auditIconMap: Record<AuditLog["title"], SmartFloodIconName> = {
+const auditIconMap: Record<string, SmartFloodIconName> = {
   "Account Updated": "accountUpdated",
   "Alert Level Updated": "alertLevelUpdate",
   "Login Failed": "loginFailed",

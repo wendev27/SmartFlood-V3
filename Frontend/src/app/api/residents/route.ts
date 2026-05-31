@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
 import { fullName, familyVulnerabilityPayload, pickResidentPayload } from "@/lib/residentPayload";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -66,6 +67,28 @@ export async function POST(req: NextRequest) {
 
       if (residentUpdateError) return NextResponse.json({ success: false, error: residentUpdateError.message }, { status: 500 });
 
+      const actor = auditActorFromBody(body);
+      await logAuditEvent({
+        ...actor,
+        action: "RESIDENT_CREATED",
+        module: "Resident Information",
+        description: `Created resident record for ${fullName(body)}.`,
+        target_type: "resident",
+        target_id: String(resident.resident_id),
+        barangay_id: body.barangay_id,
+        barangay_name: body.barangay_name,
+      });
+      await logAuditEvent({
+        ...actor,
+        action: "FAMILY_UPDATED",
+        module: "Resident Information",
+        description: `Created family cluster and vulnerability counts for ${family_name}.`,
+        target_type: "family",
+        target_id: String(family.family_id),
+        barangay_id: body.barangay_id,
+        barangay_name: body.barangay_name,
+      });
+
       return NextResponse.json({
         success: true,
         data: {
@@ -88,6 +111,17 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (residentError) return NextResponse.json({ success: false, error: residentError.message }, { status: 500 });
+
+    await logAuditEvent({
+      ...auditActorFromBody(body),
+      action: "RESIDENT_CREATED",
+      module: "Resident Information",
+      description: `Created resident record for ${fullName(body)}.`,
+      target_type: "resident",
+      target_id: String(resident.resident_id),
+      barangay_id: body.barangay_id,
+      barangay_name: body.barangay_name,
+    });
 
     return NextResponse.json({ success: true, data: { resident } }, { status: 201 });
   } catch (e: any) {

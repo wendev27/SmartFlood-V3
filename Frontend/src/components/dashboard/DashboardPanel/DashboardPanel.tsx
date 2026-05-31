@@ -72,9 +72,9 @@ export function DashboardPanel() {
         captionTone: "info",
       },
       {
-        label: "Critical Alerts",
+        label: "Severity Alerts",
         value: isLoading ? "..." : String(criticalSensors.length),
-        caption: showCriticalOnly ? "Showing critical sensors" : "View critical sensors",
+        caption: showCriticalOnly ? "Showing severity sensors" : "View severity sensors",
         tone: "cyan",
         captionTone: criticalSensors.length > 0 ? "danger" : "success",
       },
@@ -140,7 +140,7 @@ export function DashboardPanel() {
               const status = sensorStatus(sensor);
               return (
                 <button
-                  className={`${styles.sensorCard} ${level === "Critical" ? styles.criticalSensor : ""} ${selectedSensorId === key ? styles.selectedSensor : ""}`}
+                  className={`${styles.sensorCard} ${level === "Severity" ? styles.criticalSensor : ""} ${selectedSensorId === key ? styles.selectedSensor : ""}`}
                   key={key}
                   type="button"
                   aria-pressed={selectedSensorId === key}

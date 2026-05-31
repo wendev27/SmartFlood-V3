@@ -91,6 +91,42 @@
   text-underline-offset: 2px;
 }
 
+.tableScroll.tableScroll {
+  max-height: min(620px, calc(100dvh - 310px));
+  min-height: 260px;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-color: #9bc9ff transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.tableScroll::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.tableScroll::-webkit-scrollbar-thumb {
+  background: #9bc9ff;
+  border-radius: 999px;
+}
+
+.tableScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tableScroll table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.tableScroll thead th {
+  box-shadow: 0 1px 0 #edf2f7;
+  top: 0;
+  z-index: 3;
+}
+
 .userName {
   color: #1f2937;
   display: block;

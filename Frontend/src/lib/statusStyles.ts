@@ -19,7 +19,7 @@ export function normalizeFloodStatus(status?: unknown, waterLevel?: unknown): Fl
 
 export function getFloodStatusLabel(status?: unknown, waterLevel?: unknown) {
   const normalized = normalizeFloodStatus(status, waterLevel);
-  if (normalized === "critical") return "Critical";
+  if (normalized === "critical") return "Severity";
   if (normalized === "warning") return "Flood Warning";
   if (normalized === "alert") return "Flood Alert";
   if (normalized === "normal") return "Normal";

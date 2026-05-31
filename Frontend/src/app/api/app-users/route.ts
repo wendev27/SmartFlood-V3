@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
 import { pickAppUserPayload, sanitizeAppUser } from "@/lib/appUserMapping";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -51,9 +52,21 @@ export async function POST(req: NextRequest) {
     }
 
     const barangayNames = await fetchBarangayNames();
+    const sanitized = sanitizeAppUser(data, barangayNames.get(Number(data?.barangay_id)));
+    await logAuditEvent({
+      ...auditActorFromBody(body),
+      action: "ACCOUNT_CREATED",
+      module: "Account Management",
+      description: `Created account for ${[sanitized.first_name, sanitized.last_name].filter(Boolean).join(" ") || sanitized.email}.`,
+      target_type: "app_user",
+      target_id: sanitized.id,
+      barangay_id: sanitized.barangay_id,
+      barangay_name: sanitized.barangay_name,
+    });
+
     return NextResponse.json({
       success: true,
-      data: sanitizeAppUser(data, barangayNames.get(Number(data?.barangay_id))),
+      data: sanitized,
     }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });

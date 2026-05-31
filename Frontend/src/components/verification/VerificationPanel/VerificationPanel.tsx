@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ApplicationFormValues, ModalMode, VerificationApplication, VerificationStatus } from "@/types/verification";
+import { withAuditActor } from "@/lib/auditClient";
 import { fetchJson } from "@/services/apiClient";
 import { ActionResultModal, type ActionResultType } from "@/components/ui/ActionResultModal";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -104,7 +105,7 @@ export function VerificationPanel() {
       await fetchJson(`/api/resident-applications/${selectedApplication.application_id}/review`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(withAuditActor(body)),
       });
     } catch (reviewError) {
       setResultModal({

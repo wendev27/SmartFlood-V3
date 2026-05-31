@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
 import { getDb } from "@/lib/mongodb";
 import { normalizeBarangay } from "@/lib/sensorMapping";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -264,8 +265,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ success: false, error: saveError.message }, { status: 500 });
       }
 
+      const bodyActor = auditActorFromBody(body);
+      await logAuditEvent({
+        ...bodyActor,
+        action: "AI_RECOMMENDATION_GENERATED",
+        module: "AI-Optimized Relief Recommendation",
+        description: `Generated relief recommendations using current available inventory for ${(savedRows ?? recommendations).length} barangays.`,
+        target_type: "ai_recommendation_batch",
+        target_id: new Date().toISOString(),
+      });
+
       return NextResponse.json({ success: true, data: savedRows ?? recommendations });
     }
+
+    await logAuditEvent({
+      ...auditActorFromBody(body),
+      action: "AI_RECOMMENDATION_GENERATED",
+      module: "AI-Optimized Relief Recommendation",
+      description: "Generated relief recommendations using current available inventory for 0 barangays.",
+      target_type: "ai_recommendation_batch",
+      target_id: new Date().toISOString(),
+    });
 
     return NextResponse.json({ success: true, data: recommendations });
   } catch (error) {
@@ -316,7 +336,7 @@ function allocateInventory(scored: ScoredBarangay[], available: number, needFor:
 }
 
 function riskLabel(riskLevel: string) {
-  if (riskLevel === "critical") return "Critical";
+  if (riskLevel === "critical") return "Severity";
   if (riskLevel === "warning") return "Flood warning";
   if (riskLevel === "no_reading") return "No reading";
   return "Normal";

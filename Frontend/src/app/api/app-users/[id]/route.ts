@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auditActorFromBody, logAuditEvent } from "@/lib/auditLogger";
 import { pickAppUserPayload, sanitizeAppUser } from "@/lib/appUserMapping";
 import { supabaseServer } from "@/lib/supabaseServer";
 
@@ -43,7 +44,18 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       .single();
 
     if (error) return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-    return NextResponse.json({ success: true, data: sanitizeAppUser(data) });
+    const sanitized = sanitizeAppUser(data);
+    await logAuditEvent({
+      ...auditActorFromBody(body),
+      action: "ACCOUNT_UPDATED",
+      module: "Account Management",
+      description: `Updated account for ${[sanitized.first_name, sanitized.last_name].filter(Boolean).join(" ") || sanitized.email}.`,
+      target_type: "app_user",
+      target_id: sanitized.id,
+      barangay_id: sanitized.barangay_id,
+      barangay_name: sanitized.barangay_name,
+    });
+    return NextResponse.json({ success: true, data: sanitized });
   } catch (error) {
     return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
   }

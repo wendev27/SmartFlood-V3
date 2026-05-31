@@ -155,7 +155,7 @@ export function SensorsPanel() {
             <option value="Normal">Normal</option>
             <option value="Flood Alert">Flood Alert</option>
             <option value="Flood Warning">Flood Warning</option>
-            <option value="Critical">Critical</option>
+            <option value="Severity">Severity</option>
           </select>
           <button type="button" aria-label="Reset sensor filters" onClick={resetFilters}>X</button>
         </div>

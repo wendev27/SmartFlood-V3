@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { withAuditActor } from "@/lib/auditClient";
 import { fetchJson } from "@/services/apiClient";
 import { getAccountUsers } from "@/services/logsService";
 import styles from "./AccountManagement.module.css";
@@ -195,15 +196,15 @@ export function AccountManagement() {
     }
 
     const payload = {
-      first_name: form.first_name,
-      last_name: form.last_name,
-      email: form.email,
-      mobile_number: form.mobile_number,
+      first_name: form.first_name.trim(),
+      last_name: form.last_name.trim(),
+      email: form.email.trim(),
+      mobile_number: normalizePhilippineMobile(form.mobile_number),
       address: form.address,
       sex: form.sex,
       role_id: Number(form.role_id),
       barangay_id: form.barangay_id ? Number(form.barangay_id) : null,
-      status: form.status,
+      status: formMode === "add" ? "active" : form.status,
       ...(formMode === "add" ? { password: form.password } : {}),
     };
 
@@ -213,13 +214,13 @@ export function AccountManagement() {
         await fetchJson(`/api/app-users/${selectedUser.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(withAuditActor(payload)),
         });
       } else {
         await fetchJson("/api/app-users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(withAuditActor(payload)),
         });
       }
 
@@ -254,7 +255,7 @@ export function AccountManagement() {
       await fetchJson(`/api/app-users/${passwordUser.id}/password`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ new_password: newPassword }),
+        body: JSON.stringify(withAuditActor({ new_password: newPassword })),
       });
       setPasswordUser(null);
       setNewPassword("");
@@ -285,7 +286,7 @@ export function AccountManagement() {
       await fetchJson(`/api/app-users/${user.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(withAuditActor({ status })),
       });
       await refreshUsers();
       setPreviewUser((current) => current?.id === user.id ? { ...current, status } : current);
@@ -344,7 +345,7 @@ export function AccountManagement() {
         <button type="button" className={styles.addButton} onClick={openAddForm}>+ Add New</button>
       </div>
       {error ? <ErrorState title="Unable to Load Accounts" message={error} retryLabel="Retry" onRetry={refreshUsers} /> : null}
-      <DataTable headers={["Name / Email", "Role", "Department / Barangay", "Status", "Actions"]} minWidth={880}>
+      <DataTable className={styles.tableScroll} headers={["Name / Email", "Role", "Department / Barangay", "Status", "Actions"]} minWidth={880}>
         {displayedUsers.map((user, index) => (
           <tr key={user.id || `${user.email}-${index}`}>
             <td>
@@ -397,7 +398,15 @@ export function AccountManagement() {
             <label>First Name<input value={form.first_name} onChange={(event) => updateForm("first_name", event.target.value)} /></label>
             <label>Last Name<input value={form.last_name} onChange={(event) => updateForm("last_name", event.target.value)} /></label>
             <label>Email<input type="email" value={form.email} onChange={(event) => updateForm("email", event.target.value)} /></label>
-            <label>Mobile Number<input value={form.mobile_number} onChange={(event) => updateForm("mobile_number", event.target.value)} /></label>
+            <label>Mobile Number<input
+              value={form.mobile_number}
+              onBlur={() => {
+                const normalized = normalizePhilippineMobile(form.mobile_number);
+                if (normalized) updateForm("mobile_number", normalized);
+              }}
+              onChange={(event) => updateForm("mobile_number", event.target.value)}
+              placeholder="e.g., +639123456789"
+            /></label>
             {formMode === "add" ? <label>Password<input type="password" value={form.password} onChange={(event) => updateForm("password", event.target.value)} /></label> : null}
             {formMode === "add" ? <label>Confirm Password<input type="password" value={form.confirm_password} onChange={(event) => updateForm("confirm_password", event.target.value)} /></label> : null}
             <label>Role<select value={form.role_id} onChange={(event) => updateForm("role_id", event.target.value)}>
@@ -416,7 +425,7 @@ export function AccountManagement() {
             <label>Status<select value={form.status} onChange={(event) => updateForm("status", event.target.value as AccountStatus)}>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
-              <option value="blocked">Blocked</option>
+              {formMode === "edit" ? <option value="blocked">Blocked</option> : null}
             </select></label>
             <label className={styles.wideField}>Address<input value={form.address} onChange={(event) => updateForm("address", event.target.value)} /></label>
           </div>
@@ -512,14 +521,28 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 function validateAccountForm(form: AccountFormState, mode: AccountFormMode) {
-  if (!form.first_name.trim()) return "First name is required.";
-  if (!form.last_name.trim()) return "Last name is required.";
+  if (!isValidPersonName(form.first_name)) return "First name is required and can only contain letters, spaces, apostrophes, hyphens, and periods.";
+  if (!isValidPersonName(form.last_name)) return "Last name is required and can only contain letters, spaces, apostrophes, hyphens, and periods.";
   if (!form.email.trim()) return "Email is required.";
-  if (!form.mobile_number.trim()) return "Mobile number is required.";
+  if (!normalizePhilippineMobile(form.mobile_number)) return "Mobile number must be a valid Philippine mobile number like +639123456789.";
+  if (mode === "add" && form.status === "blocked") return "New accounts cannot be created as blocked.";
   if (mode === "add" && !form.password.trim()) return "Password is required.";
   if (mode === "add" && form.password !== form.confirm_password) return "Password and confirm password must match.";
   if (!form.role_id) return "Role is required.";
   if (Number(form.role_id) === 4 && !form.barangay_id) return "Barangay is required for Barangay Official accounts.";
+  return "";
+}
+
+function isValidPersonName(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= 60 && /^[A-Za-z .'-]+$/.test(trimmed);
+}
+
+function normalizePhilippineMobile(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (/^09\d{9}$/.test(digits)) return `+63${digits.slice(1)}`;
+  if (/^639\d{9}$/.test(digits)) return `+${digits}`;
+  if (/^9\d{9}$/.test(digits)) return `+63${digits}`;
   return "";
 }
 

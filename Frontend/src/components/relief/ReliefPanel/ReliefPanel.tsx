@@ -408,7 +408,7 @@ export function ReliefPanel() {
                 <h4>Flood Risk / Fuzzy Logic Explanation</h4>
                 <p>
                   The system uses fuzzy-rule-based flood classification to convert water level readings into understandable risk categories:
-                  Normal is below alert threshold, Flood Alert is around 0.25m to 0.50m, Flood Warning is around 0.75m to 1.00m, and Severe or Critical is around 1.20m to 1.50m.
+                  Normal is below alert threshold, Flood Alert is around 0.25m to 0.50m, Flood Warning is around 0.75m to 1.00m, and Severity is around 1.20m to 1.50m.
                   {!selectedReport.hasSensorReading ? " No latest sensor reading was available, so the recommendation relied more heavily on family vulnerability data." : ""}
                 </p>
               </section>
@@ -549,13 +549,13 @@ function affectedFamiliesFromReason(reason: string) {
 }
 
 function riskFromReason(reason: string) {
-  const match = reason.match(/^(Normal|Flood Alert|Flood Warning|Critical|Warning|Severe)/i);
+  const match = reason.match(/^(Normal|Flood Alert|Flood Warning|Critical|Warning|Severe|Severity)/i);
   return match?.[1] ?? "No reading";
 }
 
 function formatRiskLevel(value: string) {
   const normalized = value.replace(/_/g, " ").trim().toLowerCase();
-  if (normalized === "critical" || normalized === "severe") return "Critical / Severe";
+  if (normalized === "critical" || normalized === "severe" || normalized === "severity") return "Severity";
   if (normalized === "warning") return "Flood Warning";
   if (normalized === "alert") return "Flood Alert";
   if (normalized === "no reading" || normalized === "no_reading") return "No reading";
@@ -590,7 +590,7 @@ function formatAnalysisReason(reason: string) {
     .replace(/\b1 affected families\b/gi, "1 affected family")
     .replace(/\b(\d+) affected family record(s)?\b/gi, (_match, count: string) => `${count} affected ${count === "1" ? "family record" : "family records"}`);
 
-  const sensorMatch = normalized.match(/^(critical|warning|normal|flood warning)\s+flood risk (?:detected )?at ([^,.]+)(?: with|,)\s*(\d+)\s+affected famil(?:y|ies)\.?(.*)$/i);
+  const sensorMatch = normalized.match(/^(critical|severity|warning|normal|flood warning)\s+flood risk (?:detected )?at ([^,.]+)(?: with|,)\s*(\d+)\s+affected famil(?:y|ies)\.?(.*)$/i);
   if (sensorMatch) {
     const [, risk, level, familyCount, suffix] = sensorMatch;
     return `${formatRiskLevel(risk)} flood risk detected at ${level.trim()} with ${familyCount} affected ${familyCount === "1" ? "family" : "families"}.${suffix ? ` ${ensureSentence(capitalize(suffix.trim()))}` : ""}`;
