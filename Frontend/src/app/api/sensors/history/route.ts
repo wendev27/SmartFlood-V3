@@ -30,23 +30,27 @@ export async function GET(req: NextRequest) {
     const sensorMap = new Map<string, (typeof validSensors)[number]>();
 
     validSensors.forEach((sensor) => {
-      sensorMap.set(String(sensor._id), sensor);
-      if (sensor.sensorId) sensorMap.set(String(sensor.sensorId), sensor);
-      if (sensor.sensor_id) sensorMap.set(String(sensor.sensor_id), sensor);
+      sensorAliases(sensor).forEach((alias) => sensorMap.set(alias, sensor));
     });
 
     const readings = await db.collection("sensor_readings")
-      .find(sensorId ? { sensorId } : {})
+      .find({})
       .sort({ createdAt: -1 })
-      .limit(MAX_LIMIT)
       .toArray();
 
-    const data = readings.flatMap((reading) => {
-      const readingSensorId = String(reading.sensorId ?? "");
+    const normalizedReadings = readings.flatMap((reading) => {
+      const readingSensorId = readingSensorKey(reading);
       const sensor = sensorMap.get(readingSensorId);
       if (!sensor) return [];
+      const normalizedSensorId = sensorKey(sensor) || readingSensorId;
+      if (sensorId && normalizedSensorId !== sensorId && readingSensorId !== sensorId) return [];
 
-      const mappedBarangay = normalizeBarangay(sensor.barangayName ?? sensor.barangay);
+      const mappedBarangay = normalizeBarangay(
+        reading.barangayName
+        ?? reading.barangay
+        ?? sensor.barangayName
+        ?? sensor.barangay,
+      );
       if (barangay && mappedBarangay.barangay_name.toLowerCase() !== barangay) return [];
 
       const coordinates = resolveSensorCoordinates(sensor);
@@ -54,11 +58,11 @@ export async function GET(req: NextRequest) {
 
       return [{
         readingId: String(reading._id),
-        sensorId: readingSensorId,
-        sensorName: String(sensor.name ?? readingSensorId),
+        sensorId: normalizedSensorId,
+        sensorName: String(reading.sensorName ?? reading.name ?? sensor.name ?? normalizedSensorId),
         barangay: mappedBarangay.barangay_name,
         barangayName: mappedBarangay.barangay_name,
-        street: sensor.street ? String(sensor.street) : "",
+        street: String(reading.street ?? sensor.street ?? ""),
         lat: coordinates?.lat ?? null,
         lng: coordinates?.lng ?? null,
         waterLevelM,
@@ -70,12 +74,59 @@ export async function GET(req: NextRequest) {
         status: String(reading.status ?? reading.computedStatus ?? "no_reading"),
         createdAt: reading.createdAt ?? null,
       }];
-    }).slice(0, limit);
+    });
+    const data = sensorId
+      ? normalizedReadings.slice(0, limit)
+      : limitReadingsPerSensor(normalizedReadings, limit);
 
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
+}
+
+function limitReadingsPerSensor<T extends { sensorId: string }>(readings: T[], limit: number) {
+  const counts = new Map<string, number>();
+
+  return readings.filter((reading) => {
+    const count = counts.get(reading.sensorId) ?? 0;
+    if (count >= limit) return false;
+
+    counts.set(reading.sensorId, count + 1);
+    return true;
+  });
+}
+
+function readingSensorKey(reading: Record<string, any>) {
+  const nestedSensor = isRecord(reading.sensor) ? reading.sensor : {};
+  return firstText(
+    reading.sensorId,
+    reading.sensor_id,
+    reading.sensor_id_string,
+    nestedSensor._id,
+    reading._id,
+  );
+}
+
+function sensorKey(sensor: Record<string, unknown>) {
+  return firstText(sensor.sensorId, sensor.sensor_id, sensor.sensor_id_string, sensor._id);
+}
+
+function sensorAliases(sensor: Record<string, unknown>) {
+  return [
+    sensor._id,
+    sensor.sensorId,
+    sensor.sensor_id,
+    sensor.sensor_id_string,
+  ].map((value) => String(value ?? "").trim()).filter(Boolean);
+}
+
+function firstText(...values: unknown[]) {
+  return values.map((value) => String(value ?? "").trim()).find(Boolean) ?? "";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function finiteNumber(value: unknown) {
