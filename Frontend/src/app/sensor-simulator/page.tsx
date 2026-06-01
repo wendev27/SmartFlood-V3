@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import styles from "./SensorSimulator.module.css";
 
@@ -26,10 +26,27 @@ const INITIAL_STATE: SensorState = {
   "SNS-003": { active: true, mode: "normal" },
 };
 
+const SEND_INTERVAL_MS = 3000;
+
 export default function SensorSimulatorPage() {
   const [sensorStates, setSensorStates] = useState<SensorState>(INITIAL_STATE);
-  const [isApplying, setIsApplying] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
   const [result, setResult] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const sensorStatesRef = useRef(sensorStates);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isRequestInFlightRef = useRef(false);
+
+  useEffect(() => {
+    sensorStatesRef.current = sensorStates;
+  }, [sensorStates]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   function updateSensor(sensorId: SensorId, update: Partial<SensorState[SensorId]>) {
     setSensorStates((current) => ({
@@ -38,8 +55,11 @@ export default function SensorSimulatorPage() {
     }));
   }
 
-  async function applySimulation() {
-    setIsApplying(true);
+  async function sendOnce() {
+    if (isRequestInFlightRef.current) return;
+
+    isRequestInFlightRef.current = true;
+    setIsSending(true);
     setResult(null);
 
     try {
@@ -49,7 +69,7 @@ export default function SensorSimulatorPage() {
         body: JSON.stringify({
           sensors: SENSOR_OPTIONS.map(({ sensorId }) => ({
             sensorId,
-            ...sensorStates[sensorId],
+            ...sensorStatesRef.current[sensorId],
           })),
         }),
       });
@@ -59,6 +79,7 @@ export default function SensorSimulatorPage() {
         throw new Error(readError(payload));
       }
 
+      setLastSentAt(new Date());
       setResult({ tone: "success", message: "Sensor simulation applied." });
     } catch (error: unknown) {
       setResult({
@@ -66,8 +87,27 @@ export default function SensorSimulatorPage() {
         message: error instanceof Error ? error.message : "Unable to apply sensor simulation.",
       });
     } finally {
-      setIsApplying(false);
+      isRequestInFlightRef.current = false;
+      setIsSending(false);
     }
+  }
+
+  function startSimulator() {
+    if (intervalRef.current) return;
+
+    setIsRunning(true);
+    void sendOnce();
+    intervalRef.current = setInterval(() => {
+      void sendOnce();
+    }, SEND_INTERVAL_MS);
+  }
+
+  function stopSimulator() {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsRunning(false);
   }
 
   return (
@@ -124,9 +164,20 @@ export default function SensorSimulatorPage() {
           </p>
         ) : null}
 
+        <div className={styles.simulatorStatus} aria-live="polite">
+          <strong>{isRunning ? "Simulator running: sending every 3 seconds" : "Simulator stopped"}</strong>
+          {lastSentAt ? <span>Last sent: {lastSentAt.toLocaleTimeString()}</span> : null}
+        </div>
+
         <div className={styles.actions}>
-          <button className={styles.primaryButton} type="button" onClick={applySimulation} disabled={isApplying}>
-            {isApplying ? "Applying..." : "Apply Simulation"}
+          <button className={styles.primaryButton} type="button" onClick={startSimulator} disabled={isRunning}>
+            Start Simulator
+          </button>
+          <button className={styles.stopButton} type="button" onClick={stopSimulator} disabled={!isRunning}>
+            Stop Simulator
+          </button>
+          <button className={styles.secondaryButton} type="button" onClick={() => void sendOnce()} disabled={isSending}>
+            {isSending ? "Sending..." : "Send Once"}
           </button>
           <Link className={styles.secondaryButton} href="/dashboard#sensors">Open Dashboard</Link>
         </div>

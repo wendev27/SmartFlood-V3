@@ -13,16 +13,16 @@ type SensorSimulation = {
 };
 
 type ReadingPreset = {
-  waterLevelM: number;
-  distanceCm: number;
+  minWaterLevelM: number;
+  maxWaterLevelM: number;
   status: Exclude<SimulationMode, "no_reading">;
 };
 
 const READING_PRESETS: Record<Exclude<SimulationMode, "no_reading">, ReadingPreset> = {
-  normal: { waterLevelM: 0, distanceCm: 220, status: "normal" },
-  flood_alert: { waterLevelM: 0.35, distanceCm: 170, status: "flood_alert" },
-  flood_warning: { waterLevelM: 0.9, distanceCm: 110, status: "flood_warning" },
-  severe: { waterLevelM: 1.3, distanceCm: 70, status: "severe" },
+  normal: { minWaterLevelM: 0, maxWaterLevelM: 0.24, status: "normal" },
+  flood_alert: { minWaterLevelM: 0.25, maxWaterLevelM: 0.5, status: "flood_alert" },
+  flood_warning: { minWaterLevelM: 0.75, maxWaterLevelM: 1, status: "flood_warning" },
+  severe: { minWaterLevelM: 1.2, maxWaterLevelM: 1.5, status: "severe" },
 };
 
 export async function POST(req: NextRequest) {
@@ -48,18 +48,11 @@ export async function POST(req: NextRequest) {
 
     for (const simulation of simulations) {
       const now = new Date();
-      await sensors.updateOne(
-        { _id: simulation.sensorId },
-        {
-          $set: {
-            status: simulation.active ? "active" : "inactive",
-            lastSeenAt: now,
-            updatedAt: now,
-          },
-        },
-      );
-
       if (!simulation.active) {
+        await sensors.updateOne(
+          { _id: simulation.sensorId },
+          { $set: { status: "inactive", updatedAt: now } },
+        );
         data.push({
           sensorId: simulation.sensorId,
           active: false,
@@ -69,6 +62,11 @@ export async function POST(req: NextRequest) {
         });
         continue;
       }
+
+      await sensors.updateOne(
+        { _id: simulation.sensorId },
+        { $set: { status: "active", lastSeenAt: now, updatedAt: now } },
+      );
 
       if (simulation.mode === "no_reading") {
         await readings.deleteMany({ sensorId: simulation.sensorId });
@@ -83,11 +81,13 @@ export async function POST(req: NextRequest) {
       }
 
       const preset = READING_PRESETS[simulation.mode];
+      const waterLevelM = randomWaterLevel(preset);
+      const distanceCm = Math.max(30, Math.round((220 - waterLevelM * 100) * 100) / 100);
       await readings.insertOne({
         sensorId: simulation.sensorId,
-        waterLevelM: preset.waterLevelM,
-        waterLevel: preset.waterLevelM,
-        distanceCm: preset.distanceCm,
+        waterLevelM,
+        waterLevel: waterLevelM,
+        distanceCm,
         rainfallMm: null,
         batteryPct: null,
         computedStatus: preset.status,
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
         active: true,
         mode: simulation.mode,
         status: preset.status,
-        waterLevelM: preset.waterLevelM,
+        waterLevelM,
       });
     }
 
@@ -117,6 +117,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: false, error: message }, { status });
   }
+}
+
+function randomWaterLevel(preset: ReadingPreset) {
+  const value = preset.minWaterLevelM + Math.random() * (preset.maxWaterLevelM - preset.minWaterLevelM);
+  return Math.round(value * 100) / 100;
 }
 
 function parseSimulations(body: unknown): SensorSimulation[] {
