@@ -1,4 +1,6 @@
 import { fetchJson } from "@/services/apiClient";
+import { getCurrentUser } from "@/lib/authSession";
+import { filterSensorsForUserScope } from "@/lib/sensorScope";
 import { getSensors } from "@/services/sensorsService";
 
 export type FloodHistoryRow = {
@@ -21,7 +23,8 @@ export type FloodHistoryRow = {
 };
 
 export async function getSensorHistory(limit = 100) {
-  return fetchJson<FloodHistoryRow[]>(`/api/sensors/history?limit=${limit}`);
+  const history = await fetchJson<FloodHistoryRow[]>(`/api/sensors/history?limit=${limit}`);
+  return filterSensorsForUserScope(history, getCurrentUser());
 }
 
 export async function getLatestSensors() {

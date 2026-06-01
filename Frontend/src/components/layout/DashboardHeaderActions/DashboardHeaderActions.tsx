@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DashboardUserProfile } from "@/components/layout/AppShell/AppShell";
 import { clearStoredSession } from "@/lib/authSession";
+import { getFloodStatusClass } from "@/lib/statusStyles";
+import { getSensors } from "@/services/sensorsService";
 import styles from "./DashboardHeaderActions.module.css";
 
 interface DashboardHeaderActionsProps {
@@ -11,6 +13,32 @@ interface DashboardHeaderActionsProps {
 
 export function DashboardHeaderActions({ userProfile }: DashboardHeaderActionsProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAlertCount() {
+      try {
+        const sensors = await getSensors();
+        if (!cancelled) {
+          setAlertCount(sensors.filter((sensor) => {
+            const level = getFloodStatusClass(sensor.computedStatus, sensor.waterLevelM);
+            return level === "flood_warning" || level === "severity";
+          }).length);
+        }
+      } catch {
+        if (!cancelled) setAlertCount(0);
+      }
+    }
+
+    loadAlertCount();
+    const interval = window.setInterval(loadAlertCount, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   function logout() {
     fetch("/api/auth/logout", {
@@ -25,7 +53,7 @@ export function DashboardHeaderActions({ userProfile }: DashboardHeaderActionsPr
     <div className={styles.actions}>
       <button className={styles.alertButton} type="button" aria-label="Notifications">
         <span className={styles.bell} />
-        <strong>3</strong>
+        <strong>{alertCount}</strong>
       </button>
       <div
         className={styles.profileMenu}

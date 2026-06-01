@@ -12,6 +12,7 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
+import { filterSensorsForUserScope } from "@/lib/sensorScope";
 import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel } from "@/lib/statusStyles";
 import { getFloodMonitoringData, getSensorHistory, type FloodHistoryRow } from "@/services/floodService";
 import styles from "./MonitoringPanel.module.css";
@@ -503,6 +504,8 @@ function FloodHeatmap({ onBack, userProfile }: MonitoringSubpageProps) {
 }
 
 function AlertLevelManagement({ onBack, userProfile }: MonitoringSubpageProps) {
+  const visibleActivity = filterSensorsForUserScope(recentActivity, userProfile);
+
   return (
     <section className={styles.alertPage} aria-label="Alert level management">
       <div className={styles.subpageHeader}>
@@ -546,7 +549,7 @@ function AlertLevelManagement({ onBack, userProfile }: MonitoringSubpageProps) {
       <article className={styles.activityPanel}>
         <h3>Recent Alert Activity</h3>
         <div className={styles.activityList}>
-          {recentActivity.map((activity) => (
+          {visibleActivity.map((activity) => (
             <section className={`${styles.activityItem} ${styles[activity.tone]}`} key={activity.title}>
               <span className={styles.activityIcon}>
                 <SmartFloodIcon name="alertLevel" size={20} />
@@ -921,17 +924,20 @@ const recentActivity = [
     meta: "SNS-001 reached Severe level at 1.35m.",
     badge: "Severe",
     tone: "critical",
+    barangayName: "Barangay Tanong",
   },
   {
     title: "Flood Warning level at Barangay Potrero",
     meta: "Water level: 0.90m · 15 minutes ago",
     badge: "Flood Warning",
     tone: "warning",
+    barangayName: "Barangay Potrero",
   },
   {
     title: "Flood Alert level at Barangay Catmon",
     meta: "Water level: 0.35m · 1 hour ago",
     badge: "Flood Alert",
     tone: "alert",
+    barangayName: "Barangay Catmon",
   },
 ] as const;
