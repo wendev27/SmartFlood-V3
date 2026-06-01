@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDashboardViewer } from "@/lib/dashboardViewer";
 import { getDb } from "@/lib/mongodb";
 import { isValidSensorDocument, normalizeBarangay, resolveSensorCoordinates } from "@/lib/sensorMapping";
+import { filterSensorsForUserScope } from "@/lib/sensorScope";
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
 
 export async function GET(req: NextRequest) {
   try {
+    const viewer = await getDashboardViewer(req);
+    if (!viewer) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+
     const { searchParams } = new URL(req.url);
     const limit = Math.min(Math.max(Number(searchParams.get("limit")) || DEFAULT_LIMIT, 1), MAX_LIMIT);
     const sensorId = searchParams.get("sensorId")?.trim();
@@ -14,7 +19,14 @@ export async function GET(req: NextRequest) {
     const barangay = barangayParam ? normalizeBarangay(barangayParam).barangay_name.toLowerCase() : "";
     const db = await getDb();
     const sensors = await db.collection("sensors").find({}).toArray();
-    const validSensors = sensors.filter(isValidSensorDocument);
+    const validSensors = filterSensorsForUserScope(sensors.filter(isValidSensorDocument).map((sensor) => {
+      const mappedBarangay = normalizeBarangay(sensor.barangayName ?? sensor.barangay);
+      return {
+        ...sensor,
+        barangay_id: mappedBarangay.barangay_id,
+        barangay_name: mappedBarangay.barangay_name,
+      } as Record<string, unknown>;
+    }), viewer);
     const sensorMap = new Map<string, (typeof validSensors)[number]>();
 
     validSensors.forEach((sensor) => {
