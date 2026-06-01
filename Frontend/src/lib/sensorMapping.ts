@@ -9,10 +9,12 @@ export type SensorCoordinates = {
 };
 
 const barangayMappings: Record<string, BarangayMapping> = {
-  "1": { barangay_id: 1, barangay_name: "Barangay Tanong" },
-  "barangay 1": { barangay_id: 1, barangay_name: "Barangay Tanong" },
-  "barangay tanong": { barangay_id: 1, barangay_name: "Barangay Tanong" },
-  tanong: { barangay_id: 1, barangay_name: "Barangay Tanong" },
+  "1": { barangay_id: 1, barangay_name: "Barangay Tañong" },
+  "barangay 1": { barangay_id: 1, barangay_name: "Barangay Tañong" },
+  "barangay tanong": { barangay_id: 1, barangay_name: "Barangay Tañong" },
+  "barangay tañong": { barangay_id: 1, barangay_name: "Barangay Tañong" },
+  tanong: { barangay_id: 1, barangay_name: "Barangay Tañong" },
+  tañong: { barangay_id: 1, barangay_name: "Barangay Tañong" },
   "2": { barangay_id: 2, barangay_name: "Barangay Catmon" },
   "barangay 2": { barangay_id: 2, barangay_name: "Barangay Catmon" },
   "barangay catmon": { barangay_id: 2, barangay_name: "Barangay Catmon" },

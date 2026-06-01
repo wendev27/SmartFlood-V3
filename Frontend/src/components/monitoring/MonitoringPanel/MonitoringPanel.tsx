@@ -924,7 +924,7 @@ const recentActivity = [
     meta: "SNS-001 reached Severe level at 1.35m.",
     badge: "Severe",
     tone: "critical",
-    barangayName: "Barangay Tanong",
+    barangayName: "Barangay Tañong",
   },
   {
     title: "Flood Warning level at Barangay Potrero",
