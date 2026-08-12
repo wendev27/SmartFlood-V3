@@ -171,6 +171,187 @@
   gap: 18px;
 }
 
+.strategySection {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.strategyIntro {
+  background: #eef6ff;
+  border: 1px solid #cfe2ff;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.strategyIntro h4,
+.selectedStrategyHeader h4,
+.strategyCard h4 {
+  color: #1f2937;
+  font-size: 15px;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.strategyIntro p {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+
+.strategyGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.strategyCard {
+  background: #ffffff;
+  border: 1px solid #d8e7fb;
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.strategyCardSelected {
+  border-color: #0f61ff;
+  box-shadow: 0 10px 20px rgba(15, 97, 255, 0.12);
+}
+
+.strategyCard span,
+.selectedStrategyHeader span {
+  color: #0f61ff;
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.strategyCard p {
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.55;
+  margin-top: 8px;
+}
+
+.strategyMeta {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.strategyMeta div {
+  background: #f8fbff;
+  border: 1px solid #e4efff;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.strategyMeta dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.strategyMeta dd {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.strategyCard button,
+.strategyTabs button {
+  background: #ffffff;
+  border: 1px solid #b9d6ff;
+  border-radius: 8px;
+  color: #0f61ff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.strategyCard button:hover,
+.strategyCard button:focus-visible,
+.strategyTabs button:hover,
+.strategyTabs button:focus-visible,
+.strategyTabs .activeStrategyTab {
+  background: #0f61ff;
+  border-color: #0f61ff;
+  color: #ffffff;
+  outline: 0;
+}
+
+.selectedStrategyHeader {
+  align-items: flex-start;
+  background: #f8fbff;
+  border: 1px solid #d8e7fb;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.strategyTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.decisionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acceptButton,
+.declineButton {
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+.acceptButton {
+  background: #0f61ff;
+  border: 1px solid #0f61ff;
+  color: #ffffff;
+}
+
+.declineButton {
+  background: #ffffff;
+  border: 1px solid #fecaca;
+  color: #b42318;
+}
+
+.acceptButton:hover,
+.acceptButton:focus-visible {
+  background: #0b4fd1;
+  outline: 0;
+}
+
+.declineButton:hover,
+.declineButton:focus-visible {
+  background: #fef3f2;
+  outline: 0;
+}
+
+.acceptButton:disabled,
+.declineButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
 .recommendationCard {
   background: #f8fbff;
   border: 1px solid #94c4ff;
@@ -554,6 +735,73 @@
   padding-left: 20px;
 }
 
+.metricBlock {
+  background: #f8fbff;
+  border: 1px solid #e4efff;
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.metricBlock strong {
+  color: #004b88;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.metricBlock dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.metricBlock div {
+  min-width: 0;
+}
+
+.metricBlock dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.metricBlock dd {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.ahpTableWrap {
+  overflow-x: auto;
+}
+
+.ahpTable {
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 520px;
+  width: 100%;
+}
+
+.ahpTable th,
+.ahpTable td {
+  border-bottom: 1px solid #e4efff;
+  color: #111827;
+  padding: 10px;
+  text-align: left;
+}
+
+.ahpTable th {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .reportGrid {
   display: grid;
   gap: 10px;
@@ -613,6 +861,23 @@
 
   .historyFilters {
     grid-template-columns: minmax(120px, 0.8fr) minmax(150px, 1fr) minmax(180px, 1.15fr) minmax(220px, 1.4fr) auto;
+  }
+
+  .strategyGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .selectedStrategyHeader {
+    align-items: center;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .strategyTabs {
+    justify-content: center;
+  }
+
+  .decisionActions {
+    justify-content: flex-end;
   }
 }
 

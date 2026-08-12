@@ -10,6 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from .audit import log_audit_event_safely
 from .config import get_settings
 from .engine import _ahp_breakdown, _fuzzy_explanation, _reasoning_steps, generate_recommendations
+from .ilp import OptimizationError
 from .models import ApiResponse, AuditActor, InventoryInput
 from .payloads import recommendation_rows_to_save, to_int
 from .repositories import SmartFloodRepository, get_repository
@@ -48,23 +49,57 @@ async def create_recommendations(
         raise HTTPException(status_code=400, detail="Please input available relief inventory before generating recommendations.")
     sensors, readings = await run_in_threadpool(repository.get_sensor_snapshot)
     families = await run_in_threadpool(repository.get_families)
-    rows = generate_recommendations(sensors, readings, families, inventory.inventory_payload())
     try:
-        saved_rows = await run_in_threadpool(repository.save_recommendations, recommendation_rows_to_save(rows))
-    except Exception as error:
-        raise HTTPException(status_code=502, detail=f"Unable to save AI recommendations: {error}") from error
+        rows = generate_recommendations(sensors, readings, families, inventory.inventory_payload())
+    except OptimizationError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
     await run_in_threadpool(
         log_audit_event_safely,
         repository.log_audit_event,
         _audit_event(
             inventory.audit_actor,
             action="AI_RECOMMENDATION_GENERATED",
-            description=f"Generated relief recommendations using current available inventory for {len(saved_rows or rows)} barangays.",
+            description=f"Generated draft relief allocation plans using current available inventory for {len(rows)} barangays.",
             target_type="ai_recommendation_batch",
             target_id=datetime.now(UTC).isoformat(),
         ),
     )
-    return ApiResponse(data=_merge_saved_recommendations(rows, saved_rows, inventory.audit_actor))
+    return ApiResponse(data=[_recommendation_response(row, inventory.audit_actor) for row in rows], plans=rows[0].get("plans") if rows else [])
+
+
+@app.post("/api/ai/recommendations/approve", response_model=ApiResponse)
+async def approve_recommendations(request: Request, repository: SmartFloodRepository = Depends(get_repository)) -> ApiResponse:
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid approval payload.")
+    plan = body.get("plan")
+    if not isinstance(plan, dict):
+        raise HTTPException(status_code=400, detail="Selected allocation plan is required.")
+    allocations = plan.get("allocations")
+    if not isinstance(allocations, list) or not allocations:
+        raise HTTPException(status_code=400, detail="Selected allocation plan has no barangay allocations.")
+    rows = [row for row in allocations if isinstance(row, dict)]
+    if len(rows) != len(allocations):
+        raise HTTPException(status_code=400, detail="Selected allocation plan contains invalid allocation rows.")
+
+    actor = _audit_actor_from_payload(body.get("audit_actor"))
+    try:
+        saved_rows = await run_in_threadpool(repository.save_recommendations, recommendation_rows_to_save(rows))
+    except Exception as error:
+        raise HTTPException(status_code=502, detail=f"Unable to save approved AI recommendations: {error}") from error
+
+    await run_in_threadpool(
+        log_audit_event_safely,
+        repository.log_audit_event,
+        _audit_event(
+            actor,
+            action="AI_RECOMMENDATION_APPROVED",
+            description=f"Approved {plan.get('plan_name', 'selected')} relief allocation strategy for {len(saved_rows or rows)} barangays.",
+            target_type="ai_recommendation_plan",
+            target_id=str(plan.get("plan_id") or datetime.now(UTC).isoformat()),
+        ),
+    )
+    return ApiResponse(data=_merge_saved_recommendations(rows, saved_rows, actor))
 
 
 @app.get("/api/relief/inventory", response_model=ApiResponse)
@@ -135,6 +170,7 @@ def _recommendation_response(
         "affected_families": to_int(row.get("affected_families")),
         "recommended_family_food_packs": to_int(row.get("recommended_family_food_packs")),
         "recommended_medicine_kits": to_int(row.get("recommended_medicine_kits")),
+        "recommended_emergency_kits": to_int(row.get("recommended_medicine_kits")),
         "recommended_relief_goods_individual": to_int(row.get("recommended_relief_goods_individual")),
         "analysis_reason": _replace_critical_text(str(row.get("analysis_reason", ""))),
         "ahp_breakdown": row.get("ahp_breakdown") or _ahp_breakdown(row),
@@ -162,6 +198,12 @@ def _risk_label_for_api(risk_level: object) -> str:
 
 def _replace_critical_text(value: str) -> str:
     return value.replace("Critical", "Severity").replace("critical", "severity")
+
+
+def _audit_actor_from_payload(value: object) -> AuditActor | None:
+    if not isinstance(value, dict):
+        return None
+    return AuditActor.model_validate(value)
 
 
 def _audit_event(

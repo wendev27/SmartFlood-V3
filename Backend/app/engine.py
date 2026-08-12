@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
+from .ilp import apply_plan_allocations, build_optimization_plans
 from .payloads import to_int
 
 KNOWN_BARANGAYS = (
@@ -60,50 +60,60 @@ def generate_recommendations(
     families: list[dict[str, Any]],
     inventory: dict[str, int],
 ) -> list[dict[str, Any]]:
+    plans = generate_recommendation_plans(sensors, latest_readings, families, inventory)
+    balanced = next(plan for plan in plans if plan["plan_id"] == "balanced")
+    rows = apply_plan_allocations(_base_recommendation_rows(sensors, latest_readings, families), balanced)
+    for row in rows:
+        row["plans"] = plans
+        row["analysis_reason"] = _analysis_reason(row, row["has_sensor_reading"])
+        row["reasoning_steps"] = _reasoning_steps(row)
+    return [{name: value for name, value in row.items() if name != "has_sensor_reading"} for row in rows]
+
+
+def generate_recommendation_plans(
+    sensors: list[dict[str, Any]],
+    latest_readings: list[dict[str, Any]],
+    families: list[dict[str, Any]],
+    inventory: dict[str, int],
+) -> list[dict[str, Any]]:
+    scored = _scored_barangays(sensors, latest_readings, families)
+    plans = build_optimization_plans(scored, inventory)
+    for plan in plans:
+        for allocation in plan["allocations"]:
+            allocation["analysis_reason"] = _analysis_reason(allocation, allocation.get("has_sensor_reading", False))
+    return plans
+
+
+def _base_recommendation_rows(
+    sensors: list[dict[str, Any]],
+    latest_readings: list[dict[str, Any]],
+    families: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            name: value
+            for name, value in item.items()
+            if name != "key"
+        }
+        for item in _scored_barangays(sensors, latest_readings, families)
+    ]
+
+
+def _scored_barangays(
+    sensors: list[dict[str, Any]],
+    latest_readings: list[dict[str, Any]],
+    families: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     sensor_groups = _group_sensors(sensors, latest_readings)
     family_groups = _group_families(families)
-    scored = sorted(
+    return sorted(
         (_score_barangay(barangay, sensor_groups, family_groups) for barangay in KNOWN_BARANGAYS),
         key=lambda item: item["priority_score"],
         reverse=True,
     )
-    food = allocate_inventory(scored, inventory["family_food_packs"], lambda item: max(1, item["affected_families"]))
-    medicine = allocate_inventory(
-        scored,
-        inventory["medicine_kits"],
-        lambda item: max(
-            1,
-            item["pwd_count"]
-            + item["elderly_count"]
-            + item["lactating_count"]
-            + item["pregnant_count"]
-            + item["infant_count"],
-        ),
-    )
-    goods = allocate_inventory(scored, inventory["relief_goods_individual"], lambda item: max(1, item["total_family_members"]))
-
-    recommendations = []
-    for item in scored:
-        key = item["key"]
-        recommendation = {
-            name: value
-            for name, value in item.items()
-            if name not in {"key", "has_sensor_reading"}
-        }
-        recommendation.update(
-            recommended_family_food_packs=food[key],
-            recommended_medicine_kits=medicine[key],
-            recommended_relief_goods_individual=goods[key],
-        )
-        recommendation["analysis_reason"] = _analysis_reason(recommendation, item["has_sensor_reading"])
-        recommendation["reasoning_steps"] = _reasoning_steps(recommendation)
-        recommendations.append(recommendation)
-    return recommendations
 
 
-def allocate_inventory(
-    scored: list[dict[str, Any]], available: int, need_for: Callable[[dict[str, Any]], int]
-) -> dict[str, int]:
+def allocate_inventory(scored: list[dict[str, Any]], available: int, need_for: Any) -> dict[str, int]:
     available = max(0, to_int(available))
     allocations = {item["key"]: 0 for item in scored}
     if available <= 0 or not scored:
@@ -177,6 +187,13 @@ def _score_barangay(
     fuzzy_explanation = _fuzzy_explanation(water_level)
     risk_level = "no_reading" if sensor and sensor["reading_count"] == 0 else fuzzy_explanation["risk_level"]
     ahp_breakdown = _ahp_breakdown(totals)
+    emergency_kit_demand = (
+        totals["pwd_count"]
+        + totals["elderly_count"]
+        + totals["lactating_count"]
+        + totals["pregnant_count"]
+        + totals["infant_count"]
+    )
     priority_score = round(
         _risk_weight(risk_level) * 100 + ahp_breakdown["total_vulnerability_score"] + totals["total_family_members"],
         4,
@@ -190,6 +207,7 @@ def _score_barangay(
         "priority_score": priority_score,
         "ahp_breakdown": ahp_breakdown,
         "fuzzy_explanation": fuzzy_explanation,
+        "emergency_kit_demand": emergency_kit_demand,
         **totals,
         "has_sensor_reading": bool(sensor and sensor["reading_count"]),
     }
@@ -209,7 +227,7 @@ def _analysis_reason(item: dict[str, Any], has_sensor_reading: bool) -> str:
         + item["recommended_relief_goods_individual"]
     )
     if total_allocated:
-        allocation = "Relief allocation prioritized based on available inventory."
+        allocation = "ILP allocated whole relief units under the selected objective and constraints."
     elif families == 0:
         allocation = "No family vulnerability data is currently available for this barangay."
     else:
@@ -284,7 +302,8 @@ def _reasoning_steps(item: dict[str, Any]) -> list[str]:
     return [
         f"Sensor reading classified the barangay as {_risk_label(item['risk_level'])} risk.",
         "Family vulnerability score was computed using AHP-inspired weights.",
-        "Available inventory was distributed based on priority and affected families.",
+        "AHP and fuzzy priority scores were used as ILP objective coefficients.",
+        "ILP allocated exact integer relief units while respecting supply and demand ceilings.",
     ]
 
 
