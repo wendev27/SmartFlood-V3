@@ -5,6 +5,15 @@ out/
 dist/
 build/
 
+# Python/local tooling
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local agent/developer configuration
+.devin/
+
 # env files
 .env
 .env.local

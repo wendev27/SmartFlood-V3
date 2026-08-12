@@ -11,10 +11,11 @@ import { Modal } from "@/components/ui/Modal/Modal";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { getFloodStatusLabel } from "@/lib/statusStyles";
 import {
+  approveReliefRecommendationPlan,
   generateReliefRecommendations,
   getReliefRecommendations,
 } from "@/services/reliefService";
-import type { ReliefRecommendation } from "@/types/relief";
+import type { AhpBreakdown, ReliefAllocationPlan, ReliefPlanId, ReliefRecommendation } from "@/types/relief";
 import styles from "./ReliefPanel.module.css";
 
 type HistoryEntry = ReturnType<typeof mapHistory>;
@@ -28,11 +29,30 @@ const generationInventoryDefaults: Record<GenerationInventoryField, string> = {
   relief_goods_individual: "0",
 };
 
+const planCopy: Record<ReliefPlanId, { focus: string; description: string; button: string }> = {
+  severity_first: {
+    focus: "Flood-focused",
+    description: "Prioritizes barangays experiencing higher flood severity while considering demographic vulnerability.",
+    button: "Use Severity First",
+  },
+  vulnerability_first: {
+    focus: "People-focused",
+    description: "Prioritizes barangays with greater concentrations of vulnerable residents.",
+    button: "Use Vulnerability First",
+  },
+  balanced: {
+    focus: "Balanced approach",
+    description: "Balances immediate flood conditions with demographic vulnerability.",
+    button: "Use Balanced",
+  },
+};
+
 export function ReliefPanel() {
   const [generationInventory, setGenerationInventory] = useState<Record<GenerationInventoryField, string>>(generationInventoryDefaults);
   const [isGenerationOpen, setIsGenerationOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReliefRecommendation | null>(null);
-  const [recommendations, setRecommendations] = useState<ReliefRecommendation[]>([]);
+  const [generatedPlans, setGeneratedPlans] = useState<ReliefAllocationPlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<ReliefPlanId | "">("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyDateFilter, setHistoryDateFilter] = useState<HistoryDateFilter>("");
   const [historyBarangayFilter, setHistoryBarangayFilter] = useState("");
@@ -41,6 +61,7 @@ export function ReliefPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
   const [resultModal, setResultModal] = useState({
     open: false,
     type: "success" as ActionResultType,
@@ -60,7 +81,6 @@ export function ReliefPanel() {
 
         if (cancelled) return;
 
-        setRecommendations(latestUniqueRecommendations(recommendationRows).map(mapRecommendation));
         setHistory(recommendationRows.map(mapHistory));
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load relief data.");
@@ -76,6 +96,14 @@ export function ReliefPanel() {
   }, []);
 
   const activeHistoryDateFilter = historyDateFilter || defaultHistoryDateFilter(history);
+  const selectedPlan = useMemo(
+    () => generatedPlans.find((plan) => plan.plan_id === selectedPlanId) ?? null,
+    [generatedPlans, selectedPlanId],
+  );
+  const selectedRecommendations = useMemo(
+    () => selectedPlan?.allocations.map((allocation, index) => mapRecommendation(allocation as Record<string, unknown>, index, selectedPlan)) ?? [],
+    [selectedPlan],
+  );
   const historyBarangays = useMemo(() => Array.from(new Set(history.map((entry) => entry.barangay).filter(Boolean))).sort(), [history]);
   const filteredHistory = useMemo(() => {
     const normalizedSearch = normalizeBarangayForCompare(historySearch);
@@ -144,17 +172,19 @@ export function ReliefPanel() {
     setError("");
     try {
       const generatedRows = await generateReliefRecommendations(payload);
+      const plans = normalizePlans(generatedRows.plans);
       const latestRows = await getReliefRecommendations();
-      const currentRows = generatedRows.length > 0 ? generatedRows : latestUniqueRecommendations(latestRows);
-      setRecommendations(currentRows.map(mapRecommendation));
+      setGeneratedPlans(plans);
+      setSelectedPlanId("");
+      setSelectedReport(null);
       setHistory(latestRows.map(mapHistory));
       setIsGenerationOpen(false);
       setResultModal({
         open: true,
         type: "success",
-        title: "Recommendation Generated Successfully",
-        description: "SmartFlood has generated updated AI allocation suggestions.",
-        details: "Review the recommendation cards and allocation history for the latest outputs.",
+        title: "Allocation Plans Generated",
+        description: "SmartFlood generated three AI allocation strategies.",
+        details: plans.length > 0 ? "Choose an allocation strategy to review the barangay recommendations." : "No strategy plans were returned by the backend.",
       });
     } catch (generateError) {
       setResultModal({
@@ -169,6 +199,51 @@ export function ReliefPanel() {
     }
   }
 
+  async function acceptSelectedPlan() {
+    if (!selectedPlan) return;
+
+    setIsApproving(true);
+    setError("");
+    try {
+      const savedRows = await approveReliefRecommendationPlan(selectedPlan as unknown as Record<string, unknown>);
+      const latestRows = savedRows.length > 0 ? savedRows : await getReliefRecommendations();
+      setHistory(latestRows.map(mapHistory));
+      setGeneratedPlans([]);
+      setSelectedPlanId("");
+      setSelectedReport(null);
+      setResultModal({
+        open: true,
+        type: "success",
+        title: "Recommendation Accepted",
+        description: `${selectedPlan.plan_name} was recorded in allocation history.`,
+        details: "The selected strategy is now saved for review in the allocation history table.",
+      });
+    } catch (approvalError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Failed to Accept Recommendation",
+        description: approvalError instanceof Error ? approvalError.message : "Unable to save the selected recommendation.",
+        details: "Please verify the backend service and try accepting the strategy again.",
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  }
+
+  function declineGeneratedPlans() {
+    setGeneratedPlans([]);
+    setSelectedPlanId("");
+    setSelectedReport(null);
+    setResultModal({
+      open: true,
+      type: "success",
+      title: "Recommendation Declined",
+      description: "The generated allocation plans were discarded.",
+      details: "You can generate a new recommendation with updated inventory values.",
+    });
+  }
+
   return (
     <>
       <section className={styles.stack} aria-label="AI relief recommendations">
@@ -176,19 +251,74 @@ export function ReliefPanel() {
           <div className={styles.panelHeader}>
             <div>
               <h3>AI Allocation Suggestions</h3>
-              <p>Based on current flood data and affected population analysis</p>
+              <p>{generatedPlans.length > 0 ? "Choose how SmartFlood should prioritize relief allocation." : "Generate AI allocation plans from current flood data and available inventory."}</p>
             </div>
-            <div className={styles.actions}>
+            {generatedPlans.length === 0 ? <div className={styles.actions}>
               <Button className={styles.actionButton} onClick={openGenerationModal} disabled={isGenerating}>
                 {isGenerating ? "Generating..." : "Generate Recommendation"}
               </Button>
-            </div>
+            </div> : null}
           </div>
           {error ? <ErrorState title="Unable to Load Relief Data" message={error} /> : null}
           {isLoading ? <LoadingState message="Loading relief data..." /> : null}
 
-          <div className={styles.recommendationList}>
-            {recommendations.map((recommendation, index) => (
+          {isGenerating ? <p className={styles.stateMessage}>Generating AI allocation plans...</p> : null}
+
+          {!isLoading && !isGenerating && generatedPlans.length > 0 ? (
+            <section className={styles.strategySection} aria-label="Allocation strategy selection">
+              {!selectedPlan ? (
+                <>
+                  <div className={styles.strategyIntro}>
+                    <h4>Plans generated successfully.</h4>
+                    <p>Choose an allocation strategy to review.</p>
+                  </div>
+                  <div className={styles.strategyGrid}>
+                    {generatedPlans.map((plan) => (
+                      <StrategyCard
+                        key={plan.plan_id}
+                        plan={plan}
+                        isSelected={selectedPlanId === plan.plan_id}
+                        onSelect={() => setSelectedPlanId(plan.plan_id)}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.selectedStrategyHeader}>
+                    <div>
+                      <span>Selected Strategy</span>
+                      <h4>{selectedPlan.plan_name}</h4>
+                    </div>
+                    <div className={styles.strategyTabs} aria-label="Switch allocation strategy">
+                      {generatedPlans.map((plan) => (
+                        <button
+                          key={plan.plan_id}
+                          className={selectedPlanId === plan.plan_id ? styles.activeStrategyTab : ""}
+                          type="button"
+                          onClick={() => setSelectedPlanId(plan.plan_id)}
+                        >
+                          {plan.plan_name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className={styles.decisionActions}>
+                      <button type="button" className={styles.declineButton} onClick={declineGeneratedPlans} disabled={isApproving}>
+                        Decline
+                      </button>
+                      <button type="button" className={styles.acceptButton} onClick={acceptSelectedPlan} disabled={isApproving}>
+                        {isApproving ? "Saving..." : "Accept Strategy"}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </section>
+          ) : null}
+
+          {selectedPlan ? (
+            <div className={styles.recommendationList}>
+              {selectedRecommendations.map((recommendation, index) => (
               <article
                 className={styles.recommendationCard}
                 key={recommendation.recommendation_id || `${recommendation.barangay_name ?? recommendation.barangay}-${index}`}
@@ -214,12 +344,12 @@ export function ReliefPanel() {
                       setSelectedReport(recommendation);
                     }}
                   >
-                    View
+                    View Analysis
                   </button>
                 </div>
                 <div className={styles.cardDetails}>
                   <div>
-                    <span>Recommended Items</span>
+                    <span>Recommended Allocation</span>
                     <p>{recommendation.recommendedItems}</p>
                   </div>
                   <div>
@@ -228,16 +358,16 @@ export function ReliefPanel() {
                   </div>
                 </div>
               </article>
-            ))}
-            {!isLoading && recommendations.length === 0 ? (
+              ))}
+            </div>
+          ) : null}
+
+          {!isLoading && !isGenerating && generatedPlans.length === 0 ? (
               <EmptyState
-                title="No recommendations generated yet"
-                description="Generate a recommendation once flood data is available, then enter the current relief inventory."
-                actionLabel="Generate Recommendation"
-                onAction={openGenerationModal}
+                title="No allocation plans generated yet"
+                description="Generate a recommendation once flood data is available, then choose a strategy to review barangay allocations."
               />
-            ) : null}
-          </div>
+          ) : null}
         </div>
 
         <div className={styles.panel}>
@@ -384,7 +514,7 @@ export function ReliefPanel() {
             <header className={styles.reportHeader}>
               <div>
                 <h3 id="barangay-report-title">{formatBarangayName(selectedReport.barangay)}</h3>
-                <p>Comprehensive Barangay Information</p>
+                <p>{selectedReport.selectedPlanName ? `${selectedReport.selectedPlanName} strategy analysis` : "Comprehensive allocation analysis"}</p>
               </div>
               <button className={styles.closeButtonDark} type="button" onClick={() => setSelectedReport(null)} aria-label="Close">
                 x
@@ -396,53 +526,61 @@ export function ReliefPanel() {
                 <dl className={styles.reportGrid}>
                   <ReportDetail label="Barangay" value={formatBarangayName(selectedReport.barangay)} />
                   <ReportDetail label="Risk Level" value={selectedReport.riskLevel} />
-                  <ReportDetail label="Affected Family Records" value={selectedReport.affectedFamilies} />
-                  <ReportDetail label="Family Food Packs" value={selectedReport.familyFoodPacks} />
-                  <ReportDetail label="Medicine Kits" value={selectedReport.medicineKits} />
-                  <ReportDetail label="Relief Goods for Individual" value={selectedReport.reliefForIndividual} />
+                  <ReportDetail label="Priority Score" value={formatNumber(selectedReport.priorityScore)} />
+                  <ReportDetail label="Flood Water Level" value={formatWaterLevel(selectedReport.waterLevelM ?? selectedReport.fuzzyExplanation?.waterLevelM)} />
+                  <ReportDetail label="Affected Families" value={selectedReport.affectedFamilies} />
+                  <ReportDetail label="Objective Value" value={formatNumber(selectedReport.objectiveValue)} />
                 </dl>
               </section>
               <section className={styles.reportSection}>
                 <h4>Recommended Allocation</h4>
-                <p>{formatBarangayName(selectedReport.recommendedItems)}</p>
-              </section>
-              <section className={styles.reportSection}>
-                <h4>Flood Risk / Fuzzy Logic Explanation</h4>
-                <p>
-                  The system uses fuzzy-rule-based flood classification to convert water level readings into understandable risk categories:
-                  Normal is below alert threshold, Flood Alert is around 0.25m to 0.50m, Flood Warning is around 0.75m to 1.00m, and Severe is around 1.20m to 1.50m.
-                  {!selectedReport.hasSensorReading ? " No latest sensor reading was available, so the recommendation relied more heavily on family vulnerability data." : ""}
-                </p>
                 <dl className={styles.reportGrid}>
-                  <ReportDetail label="Fuzzy Risk Label" value={selectedReport.fuzzyExplanation?.riskLabel ?? selectedReport.riskLevel} />
-                  <ReportDetail label="Water Level" value={formatWaterLevel(selectedReport.fuzzyExplanation?.waterLevelM)} />
-                  <ReportDetail label="Fuzzy Confidence" value={formatConfidence(selectedReport.fuzzyExplanation?.confidence)} />
+                  <ReportDetail label="Family Food Packs" value={selectedReport.familyFoodPacks} />
+                  <ReportDetail label="Individual Relief Goods" value={selectedReport.reliefForIndividual} />
+                  <ReportDetail label="Emergency Kits" value={selectedReport.medicineKits} />
                 </dl>
               </section>
               <section className={styles.reportSection}>
-                <h4>AHP-inspired Vulnerability Explanation</h4>
-                <p>
-                  The recommendation applies AHP-inspired vulnerability weighting using household factors such as PWD, elderly, 4Ps, lactating, pregnant, infant, toddler, and total family members. These factors help prioritize barangays with more vulnerable residents.
-                </p>
+                <h4>Why This Recommendation?</h4>
+                <p>{formatBarangayName(selectedReport.report)}</p>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Flood Analysis</h4>
+                <dl className={styles.reportGrid}>
+                  <ReportDetail label="Water Level" value={formatWaterLevel(selectedReport.fuzzyExplanation?.waterLevelM ?? selectedReport.waterLevelM)} />
+                  <ReportDetail label="Risk" value={selectedReport.fuzzyExplanation?.riskLabel ?? selectedReport.riskLevel} />
+                  <ReportDetail label="Confidence" value={formatConfidence(selectedReport.fuzzyExplanation?.confidence)} />
+                </dl>
+                {selectedReport.fuzzyExplanation?.memberships ? <MetricList title="Membership Values" values={selectedReport.fuzzyExplanation.memberships} formatter={formatConfidence} /> : null}
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Vulnerability Analysis</h4>
                 <dl className={styles.reportGrid}>
                   <ReportDetail label="AHP Vulnerability Score" value={formatNumber(selectedReport.ahpVulnerabilityScore)} />
                 </dl>
+                {selectedReport.ahpBreakdown ? <AhpBreakdownTable breakdown={selectedReport.ahpBreakdown} /> : null}
               </section>
               <section className={styles.reportSection}>
-                <h4>AI Reasoning Steps</h4>
+                <h4>Optimization Reasoning</h4>
+                <p>The allocation was calculated using Integer Linear Programming. The optimizer maximized priority-weighted resource coverage while respecting available supply, demand limits, and whole-unit allocation requirements.</p>
+                {selectedReport.demandCeiling ? <MetricList title="Demand Ceiling" values={selectedReport.demandCeiling} /> : null}
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Constraint Status</h4>
+                <dl className={styles.reportGrid}>
+                  <ReportDetail label="Supply Constraint" value={selectedReport.constraintsSatisfied === false ? "Review needed" : "Satisfied"} />
+                  <ReportDetail label="Demand Ceiling" value={selectedReport.constraintsSatisfied === false ? "Review needed" : "Satisfied"} />
+                  <ReportDetail label="Integer Allocation" value={areAllocationsInteger(selectedReport) ? "Satisfied" : "Review needed"} />
+                  <ReportDetail label="Non-negative Allocation" value={areAllocationsNonNegative(selectedReport) ? "Satisfied" : "Review needed"} />
+                </dl>
+              </section>
+              <section className={styles.reportSection}>
+                <h4>Reasoning Steps</h4>
                 {(selectedReport.reasoningSteps?.length ?? 0) > 0 ? (
                   <ol className={styles.reasoningList}>
                     {selectedReport.reasoningSteps?.map((step, index) => <li key={`${index}-${step}`}>{formatBarangayName(step)}</li>)}
                   </ol>
                 ) : <p>No detailed reasoning steps were returned for this historical recommendation.</p>}
-              </section>
-              <section className={styles.reportSection}>
-                <h4>Inventory Constraint Explanation</h4>
-                <p>This recommendation uses fuzzy-rule-based flood classification to interpret sensor water levels, then applies AHP-inspired vulnerability weighting using family cluster factors such as PWD, elderly, pregnant, infant, toddler, and total family members. Final allocations are constrained by the available relief inventory entered during generation.</p>
-              </section>
-              <section className={styles.reportSection}>
-                <h4>Final Analysis Reason</h4>
-                <p>{formatBarangayName(selectedReport.report)}</p>
               </section>
             </div>
           </>
@@ -508,6 +646,106 @@ function GenerationQuantityField({
   );
 }
 
+function StrategyCard({
+  plan,
+  isSelected,
+  onSelect,
+}: {
+  plan: ReliefAllocationPlan;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const copy = planCopy[plan.plan_id];
+  const totals = planTotals(plan);
+  const solverStatuses = Object.values(plan.solver_status ?? {});
+  const optimizationStatus = solverStatuses.length > 0 ? Array.from(new Set(solverStatuses)).join(", ") : "Available";
+
+  return (
+    <article className={`${styles.strategyCard} ${isSelected ? styles.strategyCardSelected : ""}`}>
+      <div>
+        <span>{copy.focus}</span>
+        <h4>{plan.plan_name}</h4>
+        <p>{copy.description}</p>
+      </div>
+      <dl className={styles.strategyMeta}>
+        <div>
+          <dt>Objective Value</dt>
+          <dd>{formatNumber(plan.objective_value)}</dd>
+        </div>
+        <div>
+          <dt>Barangays</dt>
+          <dd>{plan.allocations.length}</dd>
+        </div>
+        <div>
+          <dt>Total Allocated</dt>
+          <dd>{totals.total}</dd>
+        </div>
+        <div>
+          <dt>Status</dt>
+          <dd>{optimizationStatus}</dd>
+        </div>
+      </dl>
+      <button type="button" onClick={onSelect}>{copy.button}</button>
+    </article>
+  );
+}
+
+function MetricList({
+  title,
+  values,
+  formatter = formatMetricNumber,
+}: {
+  title: string;
+  values: Record<string, number>;
+  formatter?: (value: number | null | undefined) => string;
+}) {
+  const entries = Object.entries(values);
+  if (entries.length === 0) return null;
+
+  return (
+    <div className={styles.metricBlock}>
+      <strong>{title}</strong>
+      <dl>
+        {entries.map(([key, value]) => (
+          <div key={key}>
+            <dt>{formatMetricLabel(key)}</dt>
+            <dd>{formatter(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function AhpBreakdownTable({ breakdown }: { breakdown: AhpBreakdown }) {
+  const dimensions = ["infant", "elderly", "pwd", "pregnant", "lactating", "toddler", "four_ps"];
+
+  return (
+    <div className={styles.ahpTableWrap}>
+      <table className={styles.ahpTable}>
+        <thead>
+          <tr>
+            <th>Factor</th>
+            <th>Count</th>
+            <th>Weight</th>
+            <th>Contribution</th>
+          </tr>
+        </thead>
+        <tbody>
+          {dimensions.map((dimension) => (
+            <tr key={dimension}>
+              <td>{formatMetricLabel(dimension)}</td>
+              <td>{formatMetricNumber(breakdown.counts?.[dimension])}</td>
+              <td>{formatMetricNumber(breakdown.weights?.[dimension])}</td>
+              <td>{formatMetricNumber(breakdown.contributions?.[dimension])}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function latestUniqueRecommendations(rows: Record<string, unknown>[]) {
   const latestByBarangay = new Map<string, Record<string, unknown>>();
 
@@ -518,6 +756,29 @@ function latestUniqueRecommendations(rows: Record<string, unknown>[]) {
   }
 
   return Array.from(latestByBarangay.values());
+}
+
+function normalizePlans(value: unknown): ReliefAllocationPlan[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isReliefPlan);
+}
+
+function isReliefPlan(value: unknown): value is ReliefAllocationPlan {
+  const plan = asRecord(value);
+  const planId = String(plan?.plan_id ?? "");
+  return Boolean(
+    plan
+    && ["severity_first", "vulnerability_first", "balanced"].includes(planId)
+    && typeof plan.plan_name === "string"
+    && Array.isArray(plan.allocations)
+  );
+}
+
+function planTotals(plan: ReliefAllocationPlan) {
+  const food = plan.allocations.reduce((total, allocation) => total + Number(allocation.recommended_family_food_packs ?? 0), 0);
+  const goods = plan.allocations.reduce((total, allocation) => total + Number(allocation.recommended_individual_relief_goods ?? allocation.recommended_relief_goods_individual ?? 0), 0);
+  const kits = plan.allocations.reduce((total, allocation) => total + Number(allocation.recommended_emergency_kits ?? allocation.recommended_medicine_kits ?? 0), 0);
+  return { food, goods, kits, total: food + goods + kits };
 }
 
 function recommendationBarangayKey(row: Record<string, unknown>) {
@@ -531,10 +792,10 @@ function recommendationBarangayKey(row: Record<string, unknown>) {
   return "";
 }
 
-function mapRecommendation(row: Record<string, unknown>, index: number): ReliefRecommendation {
+function mapRecommendation(row: Record<string, unknown>, index: number, plan?: ReliefAllocationPlan): ReliefRecommendation {
   const foodPacks = Number(row.recommended_family_food_packs ?? 0);
-  const medicineKits = Number(row.recommended_medicine_kits ?? 0);
-  const individualGoods = Number(row.recommended_relief_goods_individual ?? 0);
+  const medicineKits = Number(row.recommended_emergency_kits ?? row.recommended_medicine_kits ?? 0);
+  const individualGoods = Number(row.recommended_individual_relief_goods ?? row.recommended_relief_goods_individual ?? 0);
   const analysisReason = formatAnalysisReason(String(row.analysis_reason ?? fallbackAnalysisReason(row)));
   const affectedFamilies = Number(row.affected_families ?? affectedFamiliesFromReason(analysisReason));
   const rawRisk = String(row.risk_level ?? "");
@@ -543,10 +804,16 @@ function mapRecommendation(row: Record<string, unknown>, index: number): ReliefR
   const hasAllocation = foodPacks + medicineKits + individualGoods > 0;
   const fuzzyExplanation = asRecord(row.fuzzy_explanation);
   const ahpBreakdown = asRecord(row.ahp_breakdown);
+  const demandCeiling = numberRecord(asRecord(row.demand_ceiling));
 
   return {
     recommendation_id: row.recommendation_id ? String(row.recommendation_id) : undefined,
     id: String(index + 1),
+    selectedPlanId: plan?.plan_id,
+    selectedPlanName: plan?.plan_name,
+    objectiveValue: nullableNumber(plan?.objective_value),
+    priorityScore: nullableNumber(row.priority_score),
+    waterLevelM: nullableNumber(row.water_level_m),
     barangay_name: String(row.barangay_name ?? row.barangay ?? "Unknown"),
     barangay: String(row.barangay_name ?? row.barangay ?? "Unknown"),
     riskLevel,
@@ -564,8 +831,18 @@ function mapRecommendation(row: Record<string, unknown>, index: number): ReliefR
       waterLevelM: nullableNumber(fuzzyExplanation.water_level_m),
       confidence: nullableNumber(fuzzyExplanation.confidence),
       riskLabel: formatRiskLevel(String(fuzzyExplanation.risk_label ?? fuzzyExplanation.risk_level ?? riskLevel)),
+      memberships: numberRecord(asRecord(fuzzyExplanation.memberships)) ?? undefined,
+    } : undefined,
+    ahpBreakdown: ahpBreakdown ? {
+      counts: numberRecord(asRecord(ahpBreakdown.counts)) ?? undefined,
+      weights: numberRecord(asRecord(ahpBreakdown.weights)) ?? undefined,
+      contributions: numberRecord(asRecord(ahpBreakdown.contributions)) ?? undefined,
+      total_vulnerability_score: nullableNumber(ahpBreakdown.total_vulnerability_score) ?? undefined,
     } : undefined,
     ahpVulnerabilityScore: nullableNumber(ahpBreakdown?.total_vulnerability_score),
+    demandCeiling: demandCeiling ?? undefined,
+    constraintsSatisfied: typeof row.constraints_satisfied === "boolean" ? row.constraints_satisfied : undefined,
+    availableSupply: plan?.available_supply,
     reasoningSteps: Array.isArray(row.reasoning_steps) ? row.reasoning_steps.map(String).filter(Boolean) : [],
   };
 }
@@ -605,6 +882,14 @@ function nullableNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function numberRecord(value: Record<string, unknown> | null) {
+  if (!value) return null;
+  const entries = Object.entries(value)
+    .map(([key, raw]) => [key, nullableNumber(raw)] as const)
+    .filter((entry): entry is readonly [string, number] => entry[1] !== null);
+  return Object.fromEntries(entries);
+}
+
 function formatWaterLevel(value: number | null | undefined) {
   return value == null ? "Unavailable" : `${value.toFixed(2)}m`;
 }
@@ -615,6 +900,27 @@ function formatConfidence(value: number | null | undefined) {
 
 function formatNumber(value: number | null | undefined) {
   return value == null ? "Unavailable" : value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function formatMetricNumber(value: number | null | undefined) {
+  return value == null ? "Unavailable" : value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function formatMetricLabel(value: string) {
+  return value
+    .replace(/^recommended_/, "")
+    .replace(/_/g, " ")
+    .replace(/\bfour ps\b/i, "4Ps")
+    .replace(/\bpwd\b/i, "PWD")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function areAllocationsInteger(recommendation: ReliefRecommendation) {
+  return [recommendation.familyFoodPacks, recommendation.medicineKits, recommendation.reliefForIndividual].every(Number.isInteger);
+}
+
+function areAllocationsNonNegative(recommendation: ReliefRecommendation) {
+  return [recommendation.familyFoodPacks, recommendation.medicineKits, recommendation.reliefForIndividual].every((value) => value >= 0);
 }
 
 function fallbackAnalysisReason(row: Record<string, unknown>) {

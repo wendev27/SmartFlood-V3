@@ -19,9 +19,13 @@ class InventoryInput(BaseModel):
     family_food_packs: int = Field(default=0, ge=0)
     medicine_kits: int = Field(default=0, ge=0)
     relief_goods_individual: int = Field(default=0, ge=0)
+    emergency_kits: int | None = Field(default=None, ge=0)
+    individual_relief_goods: int | None = Field(default=None, ge=0)
     available_family_food_packs: int | None = Field(default=None, ge=0)
     available_medicine_kits: int | None = Field(default=None, ge=0)
     available_relief_goods_individual: int | None = Field(default=None, ge=0)
+    available_emergency_kits: int | None = Field(default=None, ge=0)
+    available_individual_relief_goods: int | None = Field(default=None, ge=0)
     updated_by: str | None = None
     audit_actor: AuditActor | None = None
 
@@ -31,6 +35,15 @@ class InventoryInput(BaseModel):
         if not isinstance(data, dict):
             return data
         values = dict(data)
+        alias_pairs = {
+            "emergency_kits": "medicine_kits",
+            "available_emergency_kits": "medicine_kits",
+            "individual_relief_goods": "relief_goods_individual",
+            "available_individual_relief_goods": "relief_goods_individual",
+        }
+        for alias, field in alias_pairs.items():
+            if field not in values and alias in values:
+                values[field] = values[alias]
         for field in ("family_food_packs", "medicine_kits", "relief_goods_individual"):
             alias = f"available_{field}"
             if field not in values and alias in values:
@@ -53,3 +66,4 @@ class InventoryInput(BaseModel):
 class ApiResponse(BaseModel):
     success: bool = True
     data: Any = None
+    plans: Any = None
