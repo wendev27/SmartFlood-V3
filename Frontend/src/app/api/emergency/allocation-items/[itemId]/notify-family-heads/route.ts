@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { assignedBarangayForUser } from "@/lib/barangayScope";
 import { logAuditEvent } from "@/lib/auditLogger";
 import { auditActorForViewer, dashboardViewerRole, getDashboardViewer, type DashboardViewer } from "@/lib/dashboardViewer";
+import { getCampaign, reconcileCampaignDistributionReadiness } from "@/lib/emergencyCampaigns";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 type RouteContext = {
@@ -37,6 +38,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const status = String(item.barangay_status ?? "");
     if (status === "family_heads_notified" || status === "completed") {
+      const campaignTransition = await transitionCampaignToDistributionIfReady(String(item.batch_id), viewer);
       return NextResponse.json({
         success: true,
         data: {
@@ -44,6 +46,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
           notification: await getItemNotification(item),
           notifications_created: 0,
           already_notified: true,
+          campaign_started: campaignTransition.started,
+          campaign: campaignTransition.campaign,
         },
       });
     }
@@ -91,6 +95,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       barangay_name: String(updatedItem.barangay_name),
     });
 
+    const campaignTransition = await transitionCampaignToDistributionIfReady(String(updatedItem.batch_id), viewer);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -99,6 +105,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
         notifications_created: familiesToNotify.length,
         eligible_families: eligibleFamilies.length,
         already_notified: false,
+        campaign_started: campaignTransition.started,
+        campaign: campaignTransition.campaign,
       },
     });
   } catch (error) {
@@ -216,6 +224,13 @@ function validateItemScope(viewer: DashboardViewer, role: string | null, item: R
     return NextResponse.json({ success: false, error: "You do not have access to this emergency allocation item." }, { status: 403 });
   }
   return null;
+}
+
+async function transitionCampaignToDistributionIfReady(batchId: string, viewer: DashboardViewer) {
+  const campaign = await getCampaign(batchId);
+  if (!campaign) return { started: false, campaign: null };
+  const transitioned = await reconcileCampaignDistributionReadiness(campaign, viewer);
+  return { started: transitioned.status === "in_distribution" && campaign.status !== "in_distribution", campaign: transitioned };
 }
 
 function stringifyOrNull(value: unknown) {

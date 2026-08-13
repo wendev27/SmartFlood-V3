@@ -10,6 +10,7 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { getFloodStatusLabel } from "@/lib/statusStyles";
+import { closeReliefCampaign } from "@/services/emergencyService";
 import {
   approveReliefRecommendationPlan,
   generateReliefRecommendations,
@@ -25,12 +26,17 @@ type HistoryEntry = ReturnType<typeof mapHistory>;
 type HistoryDateFilter = "" | "all" | "today" | "last7" | "month";
 type HistorySort = "newest" | "oldest" | "barangay" | "food" | "medicine" | "goods";
 type GenerationInventoryField = "family_food_packs" | "medicine_kits" | "relief_goods_individual";
+type GenerationPayload = Record<GenerationInventoryField, number>;
+type NewAllocationStep = "idle" | "closing" | "generating";
 
 const generationInventoryDefaults: Record<GenerationInventoryField, string> = {
   family_food_packs: "0",
   medicine_kits: "0",
   relief_goods_individual: "0",
 };
+
+const activeCampaignStatuses = new Set(["accepted", "barangays_notified", "in_distribution"]);
+const startNewAllocationClosureReason = "Closed to start a new emergency relief allocation recommendation cycle.";
 
 const planCopy: Record<ReliefPlanId, { focus: string; description: string; button: string }> = {
   severity_first: {
@@ -67,6 +73,9 @@ export function ReliefPanel() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isNotifyingBarangays, setIsNotifyingBarangays] = useState(false);
+  const [isNewAllocationConfirmOpen, setIsNewAllocationConfirmOpen] = useState(false);
+  const [pendingGenerationPayload, setPendingGenerationPayload] = useState<GenerationPayload | null>(null);
+  const [newAllocationStep, setNewAllocationStep] = useState<NewAllocationStep>("idle");
   const [resultModal, setResultModal] = useState({
     open: false,
     type: "success" as ActionResultType,
@@ -117,6 +126,7 @@ export function ReliefPanel() {
     () => currentEmergencyAllocation?.items.map(mapEmergencyAllocationItem) ?? [],
     [currentEmergencyAllocation],
   );
+  const hasActiveCampaign = Boolean(currentEmergencyAllocation && isActiveCampaignStatus(currentEmergencyAllocation.status));
   const historyBarangays = useMemo(() => Array.from(new Set(history.map((entry) => entry.barangay).filter(Boolean))).sort(), [history]);
   const filteredHistory = useMemo(() => {
     const normalizedSearch = normalizeBarangayForCompare(historySearch);
@@ -184,6 +194,38 @@ export function ReliefPanel() {
     setIsGenerating(true);
     setError("");
     try {
+      const latestActiveAllocation = await getCurrentEmergencyAllocation();
+      setCurrentEmergencyAllocation(latestActiveAllocation);
+
+      if (latestActiveAllocation && isActiveCampaignStatus(latestActiveAllocation.status)) {
+        setPendingGenerationPayload(payload);
+        setIsGenerationOpen(false);
+        setIsNewAllocationConfirmOpen(true);
+        return;
+      }
+
+      await runGeneration(payload, { manageLoading: false });
+    } catch (activeCheckError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Unable to Check Active Allocation",
+        description: activeCheckError instanceof Error ? activeCheckError.message : "Unable to confirm whether a relief allocation is active.",
+        details: "No campaign was closed and no new recommendation was generated. Please try again after the current allocation state loads.",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function runGeneration(
+    payload: GenerationPayload,
+    options: { manageLoading?: boolean; closedPreviousCampaign?: boolean } = {},
+  ) {
+    const shouldManageLoading = options.manageLoading !== false;
+    if (shouldManageLoading) setIsGenerating(true);
+    setError("");
+    try {
       const generatedRows = await generateReliefRecommendations(payload);
       const plans = normalizePlans(generatedRows.plans);
       const latestRows = await getReliefRecommendations();
@@ -196,20 +238,68 @@ export function ReliefPanel() {
         open: true,
         type: "success",
         title: "Allocation Plans Generated",
-        description: "SmartFlood generated three AI allocation strategies.",
-        details: plans.length > 0 ? "Choose an allocation strategy to review the barangay recommendations." : "No strategy plans were returned by the backend.",
+        description: options.closedPreviousCampaign
+          ? "The previous active allocation was closed and SmartFlood generated a new draft strategy set."
+          : "SmartFlood generated three AI allocation strategies.",
+        details: plans.length > 0
+          ? "Choose an allocation strategy to review. No new campaign is accepted or sent until you explicitly accept a strategy."
+          : "No strategy plans were returned by the backend.",
       });
+      return true;
     } catch (generateError) {
       setResultModal({
         open: true,
         type: "error",
         title: "Failed to Generate Recommendation",
         description: generateError instanceof Error ? generateError.message : "Unable to generate recommendations",
-        details: "Please verify the entered inventory, sensor data, and resident data before trying again.",
+        details: options.closedPreviousCampaign
+          ? "The previous campaign was already closed and its historical records were preserved. No new allocation batch was fabricated."
+          : "Please verify the entered inventory, sensor data, and resident data before trying again.",
+      });
+      return false;
+    } finally {
+      if (shouldManageLoading) setIsGenerating(false);
+    }
+  }
+
+  async function confirmCloseAndGenerate() {
+    if (!currentEmergencyAllocation || !pendingGenerationPayload) return;
+
+    const campaignToClose = currentEmergencyAllocation;
+    const payload = pendingGenerationPayload;
+
+    setNewAllocationStep("closing");
+    setIsGenerating(true);
+    setError("");
+    try {
+      await closeReliefCampaign(campaignToClose.batch_id, startNewAllocationClosureReason);
+      setCurrentEmergencyAllocation(null);
+      setNewAllocationStep("generating");
+      const generated = await runGeneration(payload, { manageLoading: false, closedPreviousCampaign: true });
+      setIsNewAllocationConfirmOpen(false);
+      setPendingGenerationPayload(null);
+      if (!generated) {
+        const latestActiveAllocation = await getCurrentEmergencyAllocation();
+        setCurrentEmergencyAllocation(latestActiveAllocation);
+      }
+    } catch (closeError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Current Allocation Was Not Closed",
+        description: closeError instanceof Error ? closeError.message : "Unable to close the current relief allocation.",
+        details: "No new AI recommendation was generated. The active campaign and its records were left untouched.",
       });
     } finally {
+      setNewAllocationStep("idle");
       setIsGenerating(false);
     }
+  }
+
+  function cancelNewAllocation() {
+    if (newAllocationStep !== "idle") return;
+    setIsNewAllocationConfirmOpen(false);
+    setPendingGenerationPayload(null);
   }
 
   async function acceptSelectedPlan() {
@@ -337,18 +427,18 @@ export function ReliefPanel() {
               <h3>AI Allocation Suggestions</h3>
               <p>{currentEmergencyAllocation ? "Review the persisted emergency allocation workflow." : generatedPlans.length > 0 ? "Choose how SmartFlood should prioritize relief allocation." : "Generate AI allocation plans from current flood data and available inventory."}</p>
             </div>
-            {generatedPlans.length === 0 && !currentEmergencyAllocation ? <div className={styles.actions}>
+            {generatedPlans.length === 0 ? <div className={styles.actions}>
               <Button className={styles.actionButton} onClick={openGenerationModal} disabled={isGenerating}>
-                {isGenerating ? "Generating..." : "Generate Recommendation"}
+                {isGenerating ? "Generating..." : hasActiveCampaign ? "Generate New Recommendation" : "Generate Recommendation"}
               </Button>
             </div> : null}
           </div>
           {error ? <ErrorState title="Unable to Load Relief Data" message={error} /> : null}
           {isLoading ? <LoadingState message="Loading relief data..." /> : null}
 
-          {isGenerating ? <p className={styles.stateMessage}>Generating AI allocation plans...</p> : null}
+          {isGenerating ? <p className={styles.stateMessage}>{newAllocationStep === "closing" ? "Ending current allocation..." : "Generating AI allocation plans..."}</p> : null}
 
-          {!isLoading && !isGenerating && currentEmergencyAllocation && generatedPlans.length === 0 ? (
+          {!isLoading && !isGenerating && currentEmergencyAllocation ? (
             <section className={styles.activeAllocation} aria-label="Active emergency allocation">
               <div className={styles.activeAllocationHeader}>
                 <div>
@@ -657,6 +747,66 @@ export function ReliefPanel() {
       </Modal>
 
       <Modal
+        className={styles.confirmDialog}
+        isOpen={isNewAllocationConfirmOpen}
+        labelledBy="new-relief-allocation-title"
+        onClose={cancelNewAllocation}
+      >
+        <header className={styles.modalHeader}>
+          <div>
+            <h3 id="new-relief-allocation-title">Start New Relief Allocation?</h3>
+            <p>A relief allocation is currently active.</p>
+          </div>
+          <button
+            className={styles.closeButtonLight}
+            type="button"
+            onClick={cancelNewAllocation}
+            disabled={newAllocationStep !== "idle"}
+            aria-label="Close"
+          >
+            x
+          </button>
+        </header>
+        <div className={styles.confirmBody}>
+          <div className={styles.currentCampaignSummary}>
+            <div>
+              <span>Current Strategy</span>
+              <strong>{currentEmergencyAllocation?.plan_name ?? "Active allocation"}</strong>
+            </div>
+            <div>
+              <span>Current Status</span>
+              <strong>{formatWorkflowStatus(currentEmergencyAllocation?.status ?? "")}</strong>
+            </div>
+          </div>
+          <p>
+            Starting a new relief allocation will close the current relief campaign and begin a new AI recommendation cycle.
+            Existing distribution records, barangay allocations, notifications, historical records, and audit logs will not be deleted.
+          </p>
+          <p>
+            The new AI recommendation will remain a draft strategy selection. You must still choose and accept Severity First,
+            Vulnerability First, or Balanced before barangays can be notified.
+          </p>
+          {newAllocationStep !== "idle" ? (
+            <p className={styles.stateMessage}>
+              {newAllocationStep === "closing" ? "Ending current allocation..." : "Generating new recommendation..."}
+            </p>
+          ) : null}
+          <div className={styles.modalFooter}>
+            <Button className={styles.footerButton} tone="muted" onClick={cancelNewAllocation} disabled={newAllocationStep !== "idle"}>
+              Cancel
+            </Button>
+            <Button className={styles.footerButton} onClick={confirmCloseAndGenerate} disabled={newAllocationStep !== "idle" || isGenerating}>
+              {newAllocationStep === "closing"
+                ? "Ending Allocation..."
+                : newAllocationStep === "generating"
+                  ? "Generating..."
+                  : "End Current Allocation & Generate New"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         className={styles.reportDialog}
         isOpen={Boolean(selectedReport)}
         labelledBy="barangay-report-title"
@@ -761,6 +911,10 @@ function parseWholeNumber(value: unknown) {
 
 function hasAnyInventory(payload: Record<GenerationInventoryField, number>) {
   return Object.values(payload).some((value) => value > 0);
+}
+
+function isActiveCampaignStatus(status: string | null | undefined) {
+  return activeCampaignStatuses.has(String(status ?? ""));
 }
 
 function GenerationQuantityField({

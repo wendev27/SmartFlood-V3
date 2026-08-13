@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const context = await resolveDistributionContext(viewer, {
       identifier,
       allocation_item_id: stringifyOrNull(body.allocation_item_id),
-      batch_id: stringifyOrNull(body.batch_id),
+      batch_id: stringifyOrNull(body.batch_id ?? body.batchId),
     });
 
     if (context.status === "UNAUTHORIZED") {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    return NextResponse.json({ success: false, result: "INVALID_BENEFICIARY", error: error instanceof Error ? error.message : "Unable to verify beneficiary." }, { status: 500 });
+    return NextResponse.json({ success: false, result: "INVALID_IDENTIFIER", error: error instanceof Error ? error.message : "Unable to verify beneficiary." }, { status: 500 });
   }
 }
 

@@ -7,7 +7,8 @@ type RouteContext = {
   params: Promise<{ batchId: string }>;
 };
 
-const alreadyNotifiedStatuses = ["barangays_notified", "in_distribution", "completed"];
+const alreadyNotifiedStatuses = ["barangays_notified", "in_distribution"];
+const terminalStatuses = ["rejected", "expired", "closed", "completed"];
 
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
@@ -29,8 +30,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!batch) {
       return NextResponse.json({ success: false, error: "Emergency allocation batch was not found." }, { status: 404 });
     }
-    if (batch.status === "rejected") {
-      return NextResponse.json({ success: false, error: "Rejected emergency allocation batches cannot notify barangays." }, { status: 400 });
+    if (terminalStatuses.includes(String(batch.status))) {
+      return NextResponse.json({ success: false, error: `Campaign status ${batch.status} cannot notify barangays.` }, { status: 400 });
     }
     if (alreadyNotifiedStatuses.includes(String(batch.status))) {
       return NextResponse.json({
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 async function getBatch(batchId: string) {
   const { data, error } = await supabaseServer
     .from("emergency_allocation_batches")
-    .select("batch_id,plan_id,plan_name,status,created_at,accepted_at")
+    .select("batch_id,plan_id,plan_name,status,created_at,accepted_at,started_at,expires_at,closed_at,closure_reason")
     .eq("batch_id", batchId)
     .maybeSingle();
 

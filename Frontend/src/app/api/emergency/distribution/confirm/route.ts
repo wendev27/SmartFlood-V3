@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     const context = await resolveDistributionContext(viewer, {
       identifier,
       allocation_item_id: stringifyOrNull(body.allocation_item_id),
-      batch_id: stringifyOrNull(body.batch_id),
+      batch_id: stringifyOrNull(body.batch_id ?? body.batchId),
     });
 
     if (context.status !== "ELIGIBLE") {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       }, { status: context.status === "UNAUTHORIZED" ? 403 : 400 });
     }
     if (!context.beneficiary || !context.allocation) {
-      return NextResponse.json({ success: false, result: "INVALID_BENEFICIARY", error: "Distribution eligibility context is incomplete." }, { status: 500 });
+      return NextResponse.json({ success: false, result: "INVALID_IDENTIFIER", error: "Distribution eligibility context is incomplete." }, { status: 500 });
     }
 
     const beneficiary = context.beneficiary;
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
           },
         }, { status: 409 });
       }
-      return NextResponse.json({ success: false, result: "INVALID_BENEFICIARY", error: error.message }, { status: 500 });
+      return NextResponse.json({ success: false, result: "INVALID_IDENTIFIER", error: error.message }, { status: 500 });
     }
 
     await logAuditEvent({
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       },
     }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ success: false, result: "INVALID_BENEFICIARY", error: error instanceof Error ? error.message : "Unable to confirm relief distribution." }, { status: 500 });
+    return NextResponse.json({ success: false, result: "INVALID_IDENTIFIER", error: error instanceof Error ? error.message : "Unable to confirm relief distribution." }, { status: 500 });
   }
 }
 

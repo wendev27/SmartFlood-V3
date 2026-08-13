@@ -528,6 +528,12 @@
   width: min(var(--modal-width), calc(100dvw - 32px));
 }
 
+.confirmDialog {
+  --modal-width: 640px;
+  border-radius: 8px;
+  width: min(var(--modal-width), calc(100dvw - 32px));
+}
+
 .modalHeader {
   align-items: flex-start;
   background: var(--color-blue);
@@ -734,6 +740,49 @@
   margin-top: 42px;
 }
 
+.confirmBody {
+  display: grid;
+  gap: 16px;
+  padding: 26px 30px 30px;
+}
+
+.confirmBody p {
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.currentCampaignSummary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+}
+
+.currentCampaignSummary div {
+  background: #f8fbff;
+  border: 1px solid #d8e7fb;
+  border-radius: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.currentCampaignSummary span {
+  color: #64748b;
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.currentCampaignSummary strong {
+  color: #111827;
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
 .footerButton {
   border-radius: 8px;
   min-height: 50px;
@@ -924,6 +973,10 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .currentCampaignSummary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .historyFilters {
     grid-template-columns: minmax(120px, 0.8fr) minmax(150px, 1fr) minmax(180px, 1.15fr) minmax(220px, 1.4fr) auto;
   }
@@ -963,12 +1016,14 @@
 
   .modalHeader,
   .inventoryBody,
+  .confirmBody,
   .reportHeader {
     padding-left: 18px;
     padding-right: 18px;
   }
 
   .inventoryDialog,
+  .confirmDialog,
   .reportDialog {
     width: min(var(--modal-width), calc(100dvw - 28px));
   }
