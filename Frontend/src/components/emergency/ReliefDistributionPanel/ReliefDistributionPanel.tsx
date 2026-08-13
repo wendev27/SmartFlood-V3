@@ -1,13 +1,16 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Modal } from "@/components/ui/Modal/Modal";
 import { cn } from "@/lib/cn";
 import {
   confirmReliefDistribution,
+  getReliefCampaignHistory,
   getReliefDistributionHistory,
   verifyReliefDistribution,
 } from "@/services/emergencyService";
 import type {
+  ReliefCampaign,
   ReliefDistributionAllocation,
   ReliefDistributionBeneficiary,
   ReliefDistributionRecord,
@@ -18,6 +21,9 @@ import styles from "./ReliefDistributionPanel.module.css";
 type LoadState = "idle" | "loading" | "verifying" | "confirming";
 
 export function ReliefDistributionPanel() {
+  const [campaigns, setCampaigns] = useState<ReliefCampaign[]>([]);
+  const [selectedCampaign, setSelectedCampaign] = useState<ReliefCampaign | null>(null);
+  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [result, setResult] = useState<ReliefDistributionVerifyResponse | null>(null);
   const [history, setHistory] = useState<ReliefDistributionRecord[]>([]);
@@ -25,36 +31,104 @@ export function ReliefDistributionPanel() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const activeCampaigns = useMemo(() => campaigns.filter((campaign) => campaign.status === "in_distribution"), [campaigns]);
+  const notReadyCampaigns = useMemo(
+    () => campaigns.filter((campaign) => ["accepted", "barangays_notified"].includes(campaign.status)),
+    [campaigns],
+  );
+  const historicalCampaigns = useMemo(
+    () => campaigns.filter((campaign) => ["completed", "closed", "expired"].includes(campaign.status)),
+    [campaigns],
+  );
+  const selectedIsActive = selectedCampaign?.status === "in_distribution";
   const receivedCount = history.filter((record) => record.status === "received").length;
-  const lastAllocation = result?.data?.allocation ?? null;
-  const remainingLabel = lastAllocation ? "Server checked per scanned family" : "Verify a family to resolve allocation";
+  const barangayCount = selectedCampaign?.progress?.total_barangays ?? selectedCampaign?.progress?.barangays?.length ?? 0;
+  const selectedScope = selectedCampaign ? campaignScopeLabel(selectedCampaign) : "No campaign selected";
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadHistory() {
+    async function loadCampaigns() {
       try {
         setState("loading");
-        const rows = await getReliefDistributionHistory();
+        const rows = await getReliefCampaignHistory();
         if (!cancelled) {
-          setHistory(rows);
+          setCampaigns(rows);
+          setSelectedCampaign((current) => {
+            if (current && rows.some((campaign) => campaign.batch_id === current.batch_id)) return current;
+            return rows.find((campaign) => campaign.status === "in_distribution") ?? rows[0] ?? null;
+          });
           setError(null);
         }
-      } catch (historyError) {
-        if (!cancelled) setError(historyError instanceof Error ? historyError.message : "Unable to load relief distribution history.");
+      } catch (loadError) {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load relief campaigns.");
       } finally {
         if (!cancelled) setState("idle");
       }
     }
 
-    loadHistory();
+    loadCampaigns();
     return () => {
       cancelled = true;
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCampaignHistory() {
+      if (!selectedCampaign) {
+        setHistory([]);
+        return;
+      }
+
+      try {
+        setState("loading");
+        const rows = await getReliefDistributionHistory(selectedCampaign.batch_id);
+        if (!cancelled) {
+          setHistory(rows);
+          setError(null);
+        }
+      } catch (historyError) {
+        if (!cancelled) setError(historyError instanceof Error ? historyError.message : "Unable to load campaign distribution history.");
+      } finally {
+        if (!cancelled) setState("idle");
+      }
+    }
+
+    loadCampaignHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCampaign]);
+
+  function selectCampaign(campaign: ReliefCampaign) {
+    setSelectedCampaign(campaign);
+    setIsSwitcherOpen(false);
+    setIdentifier("");
+    setResult(null);
+    setMessage(null);
+    setError(null);
+  }
+
+  function scanNextBeneficiary() {
+    setIdentifier("");
+    setResult(null);
+    setMessage(null);
+    setError(null);
+  }
+
   async function handleVerify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!selectedCampaign) {
+      setError("Select a relief campaign before verifying beneficiaries.");
+      return;
+    }
+    if (!selectedIsActive) {
+      setError(`${selectedCampaign.plan_name} is ${formatStatus(selectedCampaign.status)} and cannot accept distributions.`);
+      return;
+    }
+
     const trimmed = identifier.trim();
     if (!trimmed) {
       setError("Enter a beneficiary QR, family ID, or resident ID.");
@@ -65,10 +139,10 @@ export function ReliefDistributionPanel() {
       setState("verifying");
       setMessage(null);
       setError(null);
-      const verification = await verifyReliefDistribution(trimmed);
+      const verification = await verifyReliefDistribution(selectedCampaign.batch_id, trimmed);
       setResult(verification);
-      if (verification.result === "ELIGIBLE") setMessage("Beneficiary is eligible for this distribution.");
-      if (verification.result === "ALREADY_RECEIVED") setMessage("Relief already received for this family.");
+      if (verification.result === "ELIGIBLE") setMessage(`Beneficiary is eligible for ${selectedCampaign.plan_name}.`);
+      if (verification.result === "ALREADY_RECEIVED") setMessage(`Relief already received for ${selectedCampaign.plan_name}.`);
       if (!["ELIGIBLE", "ALREADY_RECEIVED"].includes(verification.result)) setError(resultMessage(verification));
     } catch (verifyError) {
       setError(verifyError instanceof Error ? verifyError.message : "Unable to verify beneficiary.");
@@ -79,20 +153,20 @@ export function ReliefDistributionPanel() {
   }
 
   async function handleConfirm() {
-    if (!identifier.trim() || result?.result !== "ELIGIBLE") return;
+    if (!selectedCampaign || !identifier.trim() || result?.result !== "ELIGIBLE") return;
 
     try {
       setState("confirming");
       setMessage(null);
       setError(null);
-      const confirmation = await confirmReliefDistribution(identifier.trim(), result.data?.allocation?.item_id);
+      const confirmation = await confirmReliefDistribution(selectedCampaign.batch_id, identifier.trim(), result.data?.allocation?.item_id);
       setResult(confirmation);
       if (confirmation.result === "RECEIVED") {
-        setMessage("Relief Distribution Confirmed");
+        setMessage(`Relief distribution confirmed for ${selectedCampaign.plan_name}.`);
         const distribution = confirmation.data?.distribution;
         if (distribution) setHistory((current) => [distribution, ...current.filter((row) => row.distribution_id !== distribution.distribution_id)]);
       } else if (confirmation.result === "ALREADY_RECEIVED") {
-        setMessage("Relief already received for this family.");
+        setMessage(`Relief already received for ${selectedCampaign.plan_name}.`);
       } else {
         setError(resultMessage(confirmation));
       }
@@ -107,27 +181,54 @@ export function ReliefDistributionPanel() {
     <section className={styles.stack} aria-label="QR relief distribution">
       <div className={styles.summary}>
         <div>
-          <span>QR Relief Distribution</span>
-          <h3>Beneficiary Verification</h3>
-          <p>Verify family eligibility before confirming actual relief receipt.</p>
+          <span>Selected Relief Program</span>
+          <h3>{selectedCampaign?.plan_name ?? "No Relief Program Selected"}</h3>
+          <p>{selectedCampaign ? selectedStatusCopy(selectedCampaign) : "Choose a campaign to view records or start beneficiary verification."}</p>
         </div>
-        <div className={styles.summaryStats}>
-          <Metric label="Received" value={receivedCount} />
-          <Metric label="Remaining" value={remainingLabel} compact />
+        <div className={styles.summaryAside}>
+          <div className={styles.summaryStats}>
+            <Metric label="Status" value={selectedCampaign ? formatStatus(selectedCampaign.status) : "-"} compact />
+            <Metric label="Received" value={selectedCampaign ? receivedCount : "-"} compact />
+          </div>
+          <button className={styles.switchButton} type="button" onClick={() => setIsSwitcherOpen(true)}>
+            Switch Relief Program
+          </button>
         </div>
       </div>
 
       {message ? <p className={styles.stateMessage}>{message}</p> : null}
       {error ? <p className={styles.errorMessage}>{error}</p> : null}
 
-      <div className={styles.layout}>
+      {selectedCampaign ? (
+        <section className={cn(styles.card, styles.selectedCampaignCard)}>
+          <header className={styles.cardHeader}>
+            <span>Campaign Summary</span>
+            <h3>{selectedCampaign.plan_name}</h3>
+            <p>{selectedIsActive ? "This campaign is open for barangay beneficiary verification." : "This campaign is read-only."}</p>
+          </header>
+          <dl className={styles.details}>
+            <Detail label="Strategy" value={selectedCampaign.plan_id.replace(/_/g, " ")} />
+            <Detail label="Status" value={formatStatus(selectedCampaign.status)} />
+            <Detail label="Started" value={formatDate(selectedCampaign.started_at ?? selectedCampaign.accepted_at ?? selectedCampaign.created_at)} />
+            <Detail label="Barangays" value={String(barangayCount)} />
+            <Detail label="Received" value={String(receivedCount)} />
+            <Detail label="Barangay Scope" value={selectedScope} />
+          </dl>
+        </section>
+      ) : null}
+
+      {selectedCampaign ? <div className={styles.layout}>
         <section className={styles.card}>
           <header className={styles.cardHeader}>
-            <span>Step 1</span>
+            <span>Step 2</span>
             <h3>Enter / Scan Beneficiary QR</h3>
-            <p>Use the family or resident identifier from the QR code. Verification does not mark relief as received.</p>
+            <p>
+              {selectedIsActive
+                ? `Verifying beneficiary for: ${selectedCampaign.plan_name}. Verification does not mark relief as received.`
+                : `${selectedCampaign.plan_name} is ${formatStatus(selectedCampaign.status)} and cannot accept new distributions.`}
+            </p>
           </header>
-          <form className={styles.verifyForm} onSubmit={handleVerify}>
+          {selectedIsActive ? <form className={styles.verifyForm} onSubmit={handleVerify}>
             <label>
               Beneficiary QR / Identifier
               <input
@@ -138,61 +239,153 @@ export function ReliefDistributionPanel() {
               />
             </label>
             <button className={styles.primaryButton} type="submit" disabled={state === "verifying" || state === "confirming"}>
-              {state === "verifying" ? "Verifying..." : "Verify"}
+              {state === "verifying" ? "Verifying..." : "Verify Beneficiary"}
             </button>
-          </form>
+          </form> : <div className={styles.emptyState}>Historical campaigns are view-only.</div>}
         </section>
 
         <DistributionResultCard
           allocation={result?.data?.allocation ?? null}
           beneficiary={result?.data?.beneficiary ?? null}
           distribution={result?.data?.distribution ?? result?.data?.existing_distribution ?? null}
+          campaign={selectedCampaign}
           onConfirm={handleConfirm}
+          onScanNext={scanNextBeneficiary}
           result={result}
           state={state}
         />
-      </div>
+      </div> : (
+        <section className={styles.card}>
+          <div className={styles.emptyState}>Select a relief program to view distribution tools and records.</div>
+        </section>
+      )}
 
-      <section className={styles.card}>
+      {selectedCampaign ? <section className={styles.card}>
         <header className={styles.cardHeader}>
-          <span>Recent</span>
+          <span>Campaign Records</span>
           <h3>Distribution History</h3>
-          <p>Latest confirmed relief distributions visible to your role.</p>
+          <p>Confirmed relief records for {selectedCampaign.plan_name}.</p>
         </header>
         {state === "loading" ? (
           <div className={styles.emptyState}>Loading distribution history...</div>
         ) : history.length === 0 ? (
-          <div className={styles.emptyState}>No confirmed relief distributions yet.</div>
+          <div className={styles.emptyState}>No confirmed relief distributions for this campaign yet.</div>
         ) : (
           <div className={styles.historyList}>
-            {history.slice(0, 10).map((record) => (
+            {history.map((record) => (
               <article key={record.distribution_id}>
                 <div>
                   <strong>{record.family_name ?? "Family"}</strong>
-                  <span>{record.family_head_name ?? "Family head not recorded"} • {record.barangay_name ?? `Barangay ${record.barangay_id}`}</span>
+                  <span>{record.family_head_name ?? "Family head not recorded"} • {record.barangay_name ?? `Barangay ${record.barangay_id}`} • {formatStatus(record.status)}</span>
                 </div>
                 <time>{formatDate(record.verified_at)}</time>
               </article>
             ))}
           </div>
         )}
-      </section>
+      </section> : null}
+
+      <Modal
+        className={styles.switcherDialog}
+        isOpen={isSwitcherOpen}
+        labelledBy="relief-campaign-switcher-title"
+        onClose={() => setIsSwitcherOpen(false)}
+        size="xl"
+      >
+        <header className={styles.switcherHeader}>
+          <div>
+            <span>Relief Program Switcher</span>
+            <h3 id="relief-campaign-switcher-title">Switch Relief Program</h3>
+            <p>Select the campaign batch to use for records, verification, and duplicate checks.</p>
+          </div>
+          <button type="button" onClick={() => setIsSwitcherOpen(false)} aria-label="Close campaign switcher">
+            x
+          </button>
+        </header>
+        <div className={styles.switcherBody}>
+          <CampaignGroup
+            actionLabel="Open Distribution"
+            campaigns={activeCampaigns}
+            emptyText="No relief programs are currently in distribution."
+            label="Active"
+            onSelect={selectCampaign}
+            selectedBatchId={selectedCampaign?.batch_id ?? null}
+          />
+          <CampaignGroup
+            actionLabel="View Status"
+            campaigns={notReadyCampaigns}
+            emptyText="No accepted or notified campaigns are waiting for distribution."
+            label="Not Ready"
+            onSelect={selectCampaign}
+            selectedBatchId={selectedCampaign?.batch_id ?? null}
+          />
+          <CampaignGroup
+            actionLabel="View Records"
+            campaigns={historicalCampaigns}
+            emptyText="No completed, closed, or expired relief history yet."
+            label="History"
+            onSelect={selectCampaign}
+            selectedBatchId={selectedCampaign?.batch_id ?? null}
+          />
+        </div>
+      </Modal>
     </section>
+  );
+}
+
+function CampaignGroup({
+  actionLabel,
+  campaigns,
+  emptyText,
+  label,
+  onSelect,
+  selectedBatchId,
+}: {
+  actionLabel: string;
+  campaigns: ReliefCampaign[];
+  emptyText: string;
+  label: string;
+  onSelect: (campaign: ReliefCampaign) => void;
+  selectedBatchId: string | null;
+}) {
+  return (
+    <div className={styles.campaignGroup}>
+      <h4>{label}</h4>
+      {campaigns.length === 0 ? <p className={styles.emptyState}>{emptyText}</p> : campaigns.map((campaign) => (
+        <button
+          className={cn(styles.campaignButton, selectedBatchId === campaign.batch_id && styles.selectedCampaignButton)}
+          key={campaign.batch_id}
+          type="button"
+          onClick={() => onSelect(campaign)}
+        >
+          <span>{campaign.plan_name}</span>
+          <strong>{formatStatus(campaign.status)}</strong>
+          <small>{campaignTiming(campaign)}</small>
+          <small>{campaign.progress?.total_distributions ?? 0} received</small>
+          <em>{campaignReadinessCopy(campaign.status)}</em>
+          <b>{actionLabel}</b>
+        </button>
+      ))}
+    </div>
   );
 }
 
 function DistributionResultCard({
   allocation,
   beneficiary,
+  campaign,
   distribution,
   onConfirm,
+  onScanNext,
   result,
   state,
 }: {
   allocation: ReliefDistributionAllocation | null;
   beneficiary: ReliefDistributionBeneficiary | null;
+  campaign: ReliefCampaign;
   distribution: ReliefDistributionRecord | null;
   onConfirm: () => void;
+  onScanNext: () => void;
   result: ReliefDistributionVerifyResponse | null;
   state: LoadState;
 }) {
@@ -202,9 +395,9 @@ function DistributionResultCard({
     return (
       <section className={styles.card}>
         <header className={styles.cardHeader}>
-          <span>Step 2</span>
+          <span>Step 3</span>
           <h3>Beneficiary Result</h3>
-          <p>Verification results will appear here after scanning or manual entry.</p>
+          <p>Verification results for {campaign.plan_name} will appear here after scanning or manual entry.</p>
         </header>
         <div className={styles.emptyState}>No beneficiary verified yet.</div>
       </section>
@@ -214,9 +407,9 @@ function DistributionResultCard({
   return (
     <section className={cn(styles.card, styles.resultCard, styles[tone])}>
       <header className={styles.cardHeader}>
-        <span>Step 2</span>
+        <span>Step 3</span>
         <h3>{resultTitle(result.result)}</h3>
-        <p>{result.reason ?? resultSubtitle(result.result)}</p>
+        <p>{result.reason ?? resultSubtitle(result.result, campaign.plan_name)}</p>
       </header>
 
       {beneficiary ? (
@@ -231,7 +424,7 @@ function DistributionResultCard({
       {allocation ? (
         <div className={styles.allocationBox}>
           <span>Active Emergency Allocation</span>
-          <strong>{allocation.batch?.plan_name ?? "Emergency allocation"}</strong>
+          <strong>{allocation.batch?.plan_name ?? campaign.plan_name}</strong>
           <p>{allocation.family_food_packs} food packs • {allocation.emergency_kits} emergency kits • {allocation.individual_relief_goods} relief goods</p>
         </div>
       ) : null}
@@ -247,6 +440,12 @@ function DistributionResultCard({
       {result.result === "ELIGIBLE" ? (
         <button className={styles.primaryButton} type="button" disabled={state === "confirming"} onClick={onConfirm}>
           {state === "confirming" ? "Confirming..." : "Confirm Relief Received"}
+        </button>
+      ) : null}
+
+      {result.result === "RECEIVED" ? (
+        <button className={styles.secondaryButton} type="button" onClick={onScanNext}>
+          Scan Next Beneficiary
         </button>
       ) : null}
     </section>
@@ -282,16 +481,18 @@ function resultTitle(result: string) {
   if (result === "ELIGIBLE") return "Eligible for Relief";
   if (result === "RECEIVED") return "Relief Distribution Confirmed";
   if (result === "ALREADY_RECEIVED") return "Relief Already Received";
+  if (result === "CAMPAIGN_NOT_ACTIVE") return "Campaign Not Active";
   if (result === "WRONG_BARANGAY") return "Wrong Barangay";
-  if (result === "ALLOCATION_NOT_READY") return "Allocation Not Ready";
+  if (result === "NOT_ELIGIBLE") return "Beneficiary Not Eligible";
   if (result === "UNAUTHORIZED") return "Unauthorized";
   return "Beneficiary Not Eligible";
 }
 
-function resultSubtitle(result: string) {
-  if (result === "ELIGIBLE") return "This family can receive relief for the active emergency allocation.";
-  if (result === "RECEIVED") return "This family has now been marked as received for this allocation.";
-  if (result === "ALREADY_RECEIVED") return "This family cannot receive the same emergency allocation twice.";
+function resultSubtitle(result: string, campaignName = "this campaign") {
+  if (result === "ELIGIBLE") return `This family can receive relief for ${campaignName}.`;
+  if (result === "RECEIVED") return `This family has now been marked as received for ${campaignName}.`;
+  if (result === "ALREADY_RECEIVED") return `This family already received relief for ${campaignName}.`;
+  if (result === "CAMPAIGN_NOT_ACTIVE") return `${campaignName} cannot accept new distributions.`;
   return "The beneficiary could not be cleared for relief distribution.";
 }
 
@@ -310,7 +511,41 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+function campaignTiming(campaign: ReliefCampaign) {
+  if (campaign.status === "in_distribution") return `Started ${formatDate(campaign.started_at ?? campaign.accepted_at ?? campaign.created_at)}`;
+  if (campaign.status === "closed") return `Closed ${formatDate(campaign.closed_at)}`;
+  if (campaign.status === "expired") return `Expired ${formatDate(campaign.expires_at)}`;
+  if (campaign.status === "completed") return `Completed ${formatDate(campaign.closed_at ?? campaign.expires_at)}`;
+  return `Created ${formatDate(campaign.created_at)}`;
+}
+
+function campaignReadinessCopy(status: string) {
+  if (status === "in_distribution") return "Open for beneficiary verification.";
+  if (status === "accepted") return "Distribution has not started yet.";
+  if (status === "barangays_notified") return "Distribution not started. Family-head notification and preparation are still incomplete.";
+  return "Read-only campaign records.";
+}
+
+function selectedStatusCopy(campaign: ReliefCampaign) {
+  if (campaign.status === "in_distribution") return "Verification and confirmation are scoped to this selected batch.";
+  if (campaign.status === "accepted") return "Distribution has not started yet. Records are view-only here.";
+  if (campaign.status === "barangays_notified") return "Distribution not started. Family-head notification and distribution preparation are still incomplete.";
+  return "Historical campaign selected. Verification and confirmation are disabled.";
+}
+
+function campaignScopeLabel(campaign: ReliefCampaign) {
+  const barangays = campaign.progress?.barangays ?? [];
+  if (barangays.length === 1) return barangays[0]?.barangay_name || "Assigned barangay";
+  if (barangays.length > 1) return `${barangays.length} barangays`;
+  return "Visible scope";
+}
+
 function shortId(value?: string | null) {
   if (!value) return "Not recorded";
   return value.length > 12 ? `${value.slice(0, 8)}...` : value;
+}
+
+function formatStatus(value?: string | null) {
+  const text = String(value ?? "").replace(/_/g, " ").trim();
+  return text ? text.replace(/\b\w/g, (char) => char.toUpperCase()) : "Unknown";
 }

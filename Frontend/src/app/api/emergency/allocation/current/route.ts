@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dashboardViewerRole, getDashboardViewer } from "@/lib/dashboardViewer";
+import { refreshCampaignExpiration } from "@/lib/emergencyCampaigns";
 import { supabaseServer } from "@/lib/supabaseServer";
 
-const activeStatuses = ["accepted", "barangays_notified", "in_distribution", "completed"];
+const activeStatuses = ["accepted", "barangays_notified", "in_distribution"];
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { data: batches, error: batchError } = await supabaseServer
       .from("emergency_allocation_batches")
-      .select("batch_id,plan_id,plan_name,status,created_at,accepted_at")
+      .select("batch_id,plan_id,plan_name,status,created_at,accepted_at,started_at,expires_at,closed_at,closed_by,closure_reason")
       .in("status", activeStatuses)
       .order("created_at", { ascending: false })
       .limit(1);
@@ -26,8 +27,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: batchError.message }, { status: 500 });
     }
 
-    const batch = batches?.[0];
+    const batch = batches?.[0] ? await refreshCampaignExpiration(batches[0] as Record<string, unknown>, viewer) : null;
     if (!batch) {
+      return NextResponse.json({ success: true, data: null });
+    }
+    if (!activeStatuses.includes(batch.status)) {
       return NextResponse.json({ success: true, data: null });
     }
 
@@ -50,6 +54,10 @@ export async function GET(request: NextRequest) {
         status: batch.status,
         created_at: batch.created_at,
         accepted_at: batch.accepted_at,
+        started_at: batch.started_at,
+        expires_at: batch.expires_at,
+        closed_at: batch.closed_at,
+        closure_reason: batch.closure_reason,
         items: items ?? [],
       },
     });

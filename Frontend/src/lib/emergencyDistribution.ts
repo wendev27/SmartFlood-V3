@@ -1,13 +1,15 @@
 import { assignedBarangayForUser } from "@/lib/barangayScope";
 import { dashboardViewerRole, type DashboardViewer } from "@/lib/dashboardViewer";
+import { getCampaign, reconcileCampaignDistributionReadiness, refreshCampaignExpiration } from "@/lib/emergencyCampaigns";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export type DistributionStatus =
   | "ELIGIBLE"
   | "ALREADY_RECEIVED"
-  | "INVALID_BENEFICIARY"
+  | "INVALID_IDENTIFIER"
   | "WRONG_BARANGAY"
-  | "ALLOCATION_NOT_READY"
+  | "CAMPAIGN_NOT_ACTIVE"
+  | "NOT_ELIGIBLE"
   | "UNAUTHORIZED";
 
 export type DistributionInput = {
@@ -30,7 +32,7 @@ type FamilyRecord = Record<string, unknown>;
 type ResidentRecord = Record<string, unknown>;
 type ItemRecord = Record<string, unknown>;
 
-const readyItemStatuses = ["family_heads_notified", "completed"];
+const readyItemStatuses = ["family_heads_notified"];
 
 const familySelect = "family_id,family_name,family_head_id,family_head_name,barangay_id,barangay_name,complete_address,street,total_family_members,pwd_count,elderly_count,four_ps_count,lactating_count,pregnant_count,infant_count,toddler_count";
 const residentSelect = "resident_id,last_name,first_name,middle_name,suffix,barangay_id,barangay_name,family_id,is_family_head,status";
@@ -43,31 +45,69 @@ export async function resolveDistributionContext(viewer: DashboardViewer | null,
   }
 
   const role = dashboardViewerRole(viewer);
-  if (role !== "barangay" && role !== "super" && role !== "cswdd") {
+  if (role !== "barangay") {
     return { status: "UNAUTHORIZED", reason: "You do not have access to relief distribution." };
+  }
+
+  const barangay = assignedBarangayForUser(viewer);
+  if (!barangay) return { status: "UNAUTHORIZED", reason: "Your account is not assigned to a barangay." };
+
+  const batchId = stringifyOrNull(input.batch_id);
+  if (!batchId) {
+    return { status: "CAMPAIGN_NOT_ACTIVE", viewer, role, reason: "Select a relief campaign before verifying beneficiaries." };
+  }
+
+  const campaign = await getCampaign(batchId);
+  if (!campaign) {
+    return { status: "CAMPAIGN_NOT_ACTIVE", viewer, role, reason: "Selected relief campaign was not found." };
+  }
+
+  const refreshedCampaign = await refreshCampaignExpiration(campaign, viewer);
+  const effectiveCampaign = await reconcileCampaignDistributionReadiness(refreshedCampaign, viewer);
+  if (effectiveCampaign.status !== "in_distribution") {
+    return {
+      status: "CAMPAIGN_NOT_ACTIVE",
+      viewer,
+      role,
+      allocation: campaignToAllocationSummary(effectiveCampaign),
+      reason: `Selected relief campaign is ${String(effectiveCampaign.status).replace(/_/g, " ")} and cannot accept distributions.`,
+    };
   }
 
   const resolved = await resolveBeneficiary(input.identifier);
   if (!resolved.family) {
-    return { status: "INVALID_BENEFICIARY", viewer, role, reason: resolved.reason ?? "Beneficiary was not found." };
+    return { status: "INVALID_IDENTIFIER", viewer, role, allocation: campaignToAllocationSummary(effectiveCampaign), reason: resolved.reason ?? "Beneficiary was not found." };
   }
 
   const family = resolved.family;
   const beneficiary = await buildBeneficiarySummary(family, resolved.resident);
-  const scopeError = validateBarangayScope(viewer, role, Number(family.barangay_id));
-  if (scopeError) {
-    return { status: scopeError.status, viewer, role, beneficiary, reason: scopeError.reason };
+  if (barangay.barangay_id !== Number(family.barangay_id)) {
+    return {
+      status: "WRONG_BARANGAY",
+      viewer,
+      role,
+      beneficiary,
+      allocation: campaignToAllocationSummary(effectiveCampaign),
+      reason: "Beneficiary does not belong to your barangay.",
+    };
   }
 
-  const allocation = await findAllocationItem(Number(family.barangay_id), input);
+  const allocation = await findAllocationItem(barangay.barangay_id, batchId, input.allocation_item_id);
   if (!allocation.item) {
-    return { status: "ALLOCATION_NOT_READY", viewer, role, beneficiary, reason: allocation.reason ?? "No emergency allocation is ready for distribution." };
+    return {
+      status: "NOT_ELIGIBLE",
+      viewer,
+      role,
+      beneficiary,
+      allocation: campaignToAllocationSummary(effectiveCampaign),
+      reason: allocation.reason ?? "Your barangay has no distribution-ready allocation for the selected campaign.",
+    };
   }
 
   const allocationSummary = await buildAllocationSummary(allocation.item);
   if (!readyItemStatuses.includes(String(allocation.item.barangay_status ?? ""))) {
     return {
-      status: "ALLOCATION_NOT_READY",
+      status: "NOT_ELIGIBLE",
       viewer,
       role,
       beneficiary,
@@ -109,11 +149,26 @@ export async function getDistributionHistoryForViewer(viewer: DashboardViewer | 
     return { status: "UNAUTHORIZED" as const, reason: "You do not have access to relief distribution history." };
   }
 
+  return getDistributionHistoryForViewerByBatch(viewer, null);
+}
+
+export async function getDistributionHistoryForViewerByBatch(viewer: DashboardViewer | null, batchId: string | null) {
+  if (!viewer) {
+    return { status: "UNAUTHORIZED" as const, reason: "Unauthorized." };
+  }
+
+  const role = dashboardViewerRole(viewer);
+  if (role !== "barangay" && role !== "super" && role !== "cswdd") {
+    return { status: "UNAUTHORIZED" as const, reason: "You do not have access to relief distribution history." };
+  }
+
   let query = supabaseServer
     .from("relief_distributions")
     .select(distributionSelect)
     .order("verified_at", { ascending: false })
     .limit(100);
+
+  if (batchId) query = query.eq("batch_id", batchId);
 
   if (role === "barangay") {
     const barangay = assignedBarangayForUser(viewer);
@@ -175,31 +230,30 @@ async function getResident(residentId: string) {
   return data as ResidentRecord | null;
 }
 
-async function findAllocationItem(barangayId: number, input: DistributionInput): Promise<{ item: ItemRecord | null; reason?: string }> {
-  if (input.allocation_item_id) {
+async function findAllocationItem(barangayId: number, batchId: string, allocationItemId?: string | null): Promise<{ item: ItemRecord | null; reason?: string }> {
+  if (allocationItemId) {
     const { data, error } = await supabaseServer
       .from("emergency_allocation_items")
       .select(itemSelect)
-      .eq("item_id", input.allocation_item_id)
+      .eq("item_id", allocationItemId)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
     if (!data) return { item: null, reason: "Emergency allocation item was not found." };
+    if (String(data.batch_id) !== batchId) return { item: null, reason: "Emergency allocation item does not belong to the selected campaign." };
     if (Number(data.barangay_id) !== barangayId) return { item: null, reason: "Emergency allocation item does not match the beneficiary barangay." };
     return { item: data as ItemRecord };
   }
 
-  let query = supabaseServer
+  const { data, error } = await supabaseServer
     .from("emergency_allocation_items")
     .select(itemSelect)
+    .eq("batch_id", batchId)
     .eq("barangay_id", barangayId)
     .in("barangay_status", readyItemStatuses)
     .order("created_at", { ascending: false })
     .limit(1);
 
-  if (input.batch_id) query = query.eq("batch_id", input.batch_id);
-
-  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return { item: (data?.[0] as ItemRecord | undefined) ?? null };
 }
@@ -260,13 +314,8 @@ async function buildBeneficiarySummary(family: FamilyRecord, resident: ResidentR
 }
 
 async function buildAllocationSummary(item: ItemRecord) {
-  const { data: batch, error } = await supabaseServer
-    .from("emergency_allocation_batches")
-    .select("batch_id,plan_id,plan_name,status,created_at")
-    .eq("batch_id", item.batch_id)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
+  const batch = await getCampaign(String(item.batch_id));
+  const effectiveBatch = batch ? await refreshCampaignExpiration(batch) : null;
   return {
     item_id: String(item.item_id),
     batch_id: String(item.batch_id),
@@ -276,7 +325,7 @@ async function buildAllocationSummary(item: ItemRecord) {
     family_food_packs: Number(item.family_food_packs ?? 0),
     individual_relief_goods: Number(item.individual_relief_goods ?? 0),
     emergency_kits: Number(item.emergency_kits ?? 0),
-    batch: batch ?? null,
+    batch: effectiveBatch,
   };
 }
 
@@ -322,15 +371,6 @@ async function attachDistributionNames(distributions: Record<string, unknown>[])
   });
 }
 
-function validateBarangayScope(viewer: DashboardViewer, role: string, barangayId: number) {
-  if (role !== "barangay") return null;
-
-  const barangay = assignedBarangayForUser(viewer);
-  if (!barangay) return { status: "UNAUTHORIZED" as const, reason: "Your account is not assigned to a barangay." };
-  if (barangay.barangay_id !== barangayId) return { status: "WRONG_BARANGAY" as const, reason: "Beneficiary does not belong to your barangay." };
-  return null;
-}
-
 function parseIdentifier(identifier: string) {
   const raw = String(identifier ?? "").trim();
   const normalized = raw.replace(/^smartflood:/i, "");
@@ -338,6 +378,20 @@ function parseIdentifier(identifier: string) {
   if (!match) return { kind: "unknown", value: normalized };
   const kind = match[1].toLowerCase().startsWith("fam") ? "family" : "resident";
   return { kind, value: match[2].trim() };
+}
+
+function campaignToAllocationSummary(campaign: Awaited<ReturnType<typeof refreshCampaignExpiration>>) {
+  return {
+    item_id: "",
+    batch_id: String(campaign.batch_id ?? ""),
+    barangay_id: 0,
+    barangay_name: "",
+    barangay_status: "",
+    family_food_packs: 0,
+    individual_relief_goods: 0,
+    emergency_kits: 0,
+    batch: campaign,
+  };
 }
 
 function isUuid(value: string) {

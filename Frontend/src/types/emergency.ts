@@ -47,6 +47,8 @@ export interface EmergencyNotificationListResponse {
 export interface EmergencyAllocationActionResponse {
   notification: EmergencyNotification | null;
   allocation_item: EmergencyNotificationAllocationItem;
+  campaign?: ReliefCampaign | null;
+  campaign_started?: boolean;
   notifications_created?: number;
   eligible_families?: number;
   already_notified?: boolean;
@@ -55,9 +57,10 @@ export interface EmergencyAllocationActionResponse {
 export type ReliefDistributionResult =
   | "ELIGIBLE"
   | "ALREADY_RECEIVED"
-  | "INVALID_BENEFICIARY"
+  | "INVALID_IDENTIFIER"
   | "WRONG_BARANGAY"
-  | "ALLOCATION_NOT_READY"
+  | "CAMPAIGN_NOT_ACTIVE"
+  | "NOT_ELIGIBLE"
   | "UNAUTHORIZED"
   | "RECEIVED";
 
@@ -89,6 +92,10 @@ export interface ReliefDistributionAllocation {
     plan_name?: string;
     status?: string;
     created_at?: string | null;
+    started_at?: string | null;
+    expires_at?: string | null;
+    closed_at?: string | null;
+    closure_reason?: string | null;
   } | null;
 }
 
@@ -123,4 +130,41 @@ export interface ReliefDistributionVerifyResponse {
 
 export interface ReliefDistributionHistoryResponse {
   distributions: ReliefDistributionRecord[];
+}
+
+export interface ReliefCampaignProgressBarangay {
+  barangay_id: number;
+  barangay_name: string;
+  allocation_item_id: string;
+  received: number;
+}
+
+export interface ReliefCampaignProgress {
+  total_barangays: number;
+  total_distributions: number;
+  barangays: ReliefCampaignProgressBarangay[];
+}
+
+export interface ReliefCampaign {
+  batch_id: string;
+  plan_id: string;
+  plan_name: string;
+  status: string;
+  created_at?: string | null;
+  accepted_at?: string | null;
+  started_at?: string | null;
+  expires_at?: string | null;
+  closed_at?: string | null;
+  closed_by?: string | null;
+  closure_reason?: string | null;
+  progress?: ReliefCampaignProgress;
+}
+
+export interface ReliefCampaignHistoryResponse {
+  campaigns: ReliefCampaign[];
+}
+
+export interface ReliefCampaignActionResponse {
+  campaign: ReliefCampaign;
+  progress: ReliefCampaignProgress;
 }
