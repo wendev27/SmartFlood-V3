@@ -170,12 +170,13 @@ export async function getCampaignProgress(batchId: string, viewer?: DashboardVie
     distributions = (data ?? []) as Record<string, unknown>[];
   }
 
-  const byBarangay = new Map<string, { barangay_id: number; barangay_name: string; allocation_item_id: string; received: number }>();
+  const byBarangay = new Map<string, { barangay_id: number; barangay_name: string; allocation_item_id: string; barangay_status: string; received: number }>();
   for (const item of items ?? []) {
     byBarangay.set(String(item.item_id), {
       barangay_id: Number(item.barangay_id),
       barangay_name: String(item.barangay_name ?? ""),
       allocation_item_id: String(item.item_id),
+      barangay_status: String(item.barangay_status ?? ""),
       received: 0,
     });
   }

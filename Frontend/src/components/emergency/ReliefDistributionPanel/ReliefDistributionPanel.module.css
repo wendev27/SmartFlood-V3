@@ -252,8 +252,15 @@
   opacity: 0.55;
 }
 
+.actionRow {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .stateMessage,
 .errorMessage,
+.warningMessage,
 .emptyState {
   border-radius: 8px;
   font-size: 12px;
@@ -269,6 +276,12 @@
 .errorMessage {
   background: #fef3f2;
   color: #b42318;
+}
+
+.warningMessage {
+  background: #fff7ed;
+  color: #9a3412;
+  margin: 0;
 }
 
 .emptyState {
@@ -473,6 +486,7 @@
   .campaignColumns,
   .switcherBody,
   .summaryStats,
+  .actionRow,
   .details {
     grid-template-columns: 1fr;
   }

@@ -73,6 +73,14 @@ export async function getReliefDistributionHistory(batchId?: string | null) {
   return data.distributions;
 }
 
+export function reliefDistributionExportUrl(batchId: string) {
+  return `/api/emergency/distribution/export?batchId=${encodeURIComponent(batchId)}`;
+}
+
+export function reliefDistributionScannerUrl(batchId: string) {
+  return `/dashboard/reliefDistribution/scan?batchId=${encodeURIComponent(batchId)}`;
+}
+
 export async function getReliefCampaignHistory() {
   const data = await fetchJson<ReliefCampaignHistoryResponse>("/api/emergency/campaigns/history");
   return data.campaigns;

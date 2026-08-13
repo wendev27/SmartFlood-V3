@@ -136,6 +136,7 @@ export interface ReliefCampaignProgressBarangay {
   barangay_id: number;
   barangay_name: string;
   allocation_item_id: string;
+  barangay_status?: string | null;
   received: number;
 }
 
