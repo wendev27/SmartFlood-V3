@@ -25,6 +25,10 @@ export const pageCopy: Record<PageKey, PageCopy> = {
     title: "Emergency Notifications",
     subtitle: "Review emergency relief allocations sent to your barangay.",
   },
+  reliefDistribution: {
+    title: "Relief Distribution",
+    subtitle: "Verify eligible families and confirm actual relief receipt.",
+  },
   sensors: {
     title: "Sensor History",
     subtitle: "View and monitor sensor device readings",

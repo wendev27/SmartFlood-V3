@@ -3,6 +3,8 @@ import type {
   EmergencyAllocationActionResponse,
   EmergencyNotification,
   EmergencyNotificationListResponse,
+  ReliefDistributionHistoryResponse,
+  ReliefDistributionVerifyResponse,
 } from "@/types/emergency";
 
 export async function getEmergencyNotifications() {
@@ -43,4 +45,27 @@ export async function notifyFamilyHeadsForEmergencyAllocation(itemId: string) {
     method: "POST",
   });
   return response.data ?? null;
+}
+
+export async function verifyReliefDistribution(identifier: string) {
+  const response = await fetchEnvelope<ReliefDistributionVerifyResponse>("/api/emergency/distribution/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier }),
+  });
+  return response as ReliefDistributionVerifyResponse;
+}
+
+export async function confirmReliefDistribution(identifier: string, allocationItemId?: string | null) {
+  const response = await fetchEnvelope<ReliefDistributionVerifyResponse>("/api/emergency/distribution/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identifier, allocation_item_id: allocationItemId ?? null }),
+  });
+  return response as ReliefDistributionVerifyResponse;
+}
+
+export async function getReliefDistributionHistory() {
+  const data = await fetchJson<ReliefDistributionHistoryResponse>("/api/emergency/distribution/history");
+  return data.distributions;
 }

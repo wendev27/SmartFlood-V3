@@ -51,3 +51,76 @@ export interface EmergencyAllocationActionResponse {
   eligible_families?: number;
   already_notified?: boolean;
 }
+
+export type ReliefDistributionResult =
+  | "ELIGIBLE"
+  | "ALREADY_RECEIVED"
+  | "INVALID_BENEFICIARY"
+  | "WRONG_BARANGAY"
+  | "ALLOCATION_NOT_READY"
+  | "UNAUTHORIZED"
+  | "RECEIVED";
+
+export interface ReliefDistributionBeneficiary {
+  family_id: string;
+  family_name: string;
+  family_head_id?: string | null;
+  family_head_name?: string | null;
+  barangay_id: number;
+  barangay_name: string;
+  total_family_members: number;
+  address?: string | null;
+  scanned_resident_name?: string | null;
+  vulnerability?: Record<string, number>;
+}
+
+export interface ReliefDistributionAllocation {
+  item_id: string;
+  batch_id: string;
+  barangay_id: number;
+  barangay_name: string;
+  barangay_status: string;
+  family_food_packs: number;
+  individual_relief_goods: number;
+  emergency_kits: number;
+  batch?: {
+    batch_id: string;
+    plan_id?: string;
+    plan_name?: string;
+    status?: string;
+    created_at?: string | null;
+  } | null;
+}
+
+export interface ReliefDistributionRecord {
+  distribution_id: string;
+  batch_id: string;
+  allocation_item_id: string;
+  family_id: string;
+  family_head_id?: string | null;
+  barangay_id: number;
+  status: string;
+  verified_by: string;
+  verified_at?: string | null;
+  created_at?: string | null;
+  family_name?: string | null;
+  family_head_name?: string | null;
+  barangay_name?: string | null;
+  total_family_members?: number | null;
+  verified_by_name?: string | null;
+}
+
+export interface ReliefDistributionVerifyResponse {
+  result: ReliefDistributionResult;
+  reason?: string | null;
+  data?: {
+    beneficiary?: ReliefDistributionBeneficiary | null;
+    allocation?: ReliefDistributionAllocation | null;
+    existing_distribution?: ReliefDistributionRecord | null;
+    distribution?: ReliefDistributionRecord | null;
+  };
+}
+
+export interface ReliefDistributionHistoryResponse {
+  distributions: ReliefDistributionRecord[];
+}
