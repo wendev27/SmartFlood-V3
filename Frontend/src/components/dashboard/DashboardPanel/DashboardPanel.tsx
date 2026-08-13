@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel, type FloodLevel } from "@/lib/statusStyles";
 import { formatBarangayName, formatSensorUpdatedTime } from "@/lib/formatters";
 import { StatCard } from "@/components/ui/StatCard/StatCard";
@@ -14,11 +15,13 @@ import type { DashboardStat } from "@/types/dashboard";
 import styles from "./DashboardPanel.module.css";
 
 export function DashboardPanel() {
+  const pageSize = 5;
   const [sensorRows, setSensorRows] = useState<Record<string, unknown>[]>([]);
   const [showSevereOnly, setShowSevereOnly] = useState(false);
   const [selectedSensorId, setSelectedSensorId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [sensorPage, setSensorPage] = useState(1);
 
   const loadDashboard = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
@@ -59,6 +62,23 @@ export function DashboardPanel() {
   }, []);
 
   const severeSensors = useMemo(() => sensorRows.filter((row) => sensorFloodLevel(row) === "severity"), [sensorRows]);
+  const visibleSensorRows = showSevereOnly ? severeSensors : sensorRows;
+  const paginatedSensorRows = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(visibleSensorRows.length / pageSize));
+    const safePage = Math.min(sensorPage, totalPages);
+    return {
+      rows: visibleSensorRows.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: visibleSensorRows.length, totalPages } satisfies PaginationState,
+    };
+  }, [sensorPage, visibleSensorRows]);
+
+  useEffect(() => {
+    setSensorPage(1);
+  }, [showSevereOnly]);
+
+  useEffect(() => {
+    if (sensorPage !== paginatedSensorRows.pagination.page) setSensorPage(paginatedSensorRows.pagination.page);
+  }, [paginatedSensorRows.pagination.page, sensorPage]);
 
   const simpleStats = useMemo<DashboardStat[]>(() => {
     return [
@@ -131,8 +151,9 @@ export function DashboardPanel() {
           <EmptyState title="No sensor nodes available." description="Sensor cards will appear when live sensor data is available." />
         ) : null}
         {!isLoading && !error && sensorRows.length > 0 ? (
+          <>
           <div className={styles.sensorScroller}>
-            {sensorRows.map((sensor, index) => {
+            {paginatedSensorRows.rows.map((sensor, index) => {
               const key = sensorKey(sensor, index);
               const level = sensorLevel(sensor);
               const floodLevel = sensorFloodLevel(sensor);
@@ -163,6 +184,8 @@ export function DashboardPanel() {
               );
             })}
           </div>
+          <SharedPagination pagination={paginatedSensorRows.pagination} onPageChange={setSensorPage} label="Dashboard sensors" />
+          </>
         ) : null}
       </section>
     </div>

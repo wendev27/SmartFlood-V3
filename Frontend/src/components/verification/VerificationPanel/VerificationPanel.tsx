@@ -8,6 +8,7 @@ import { ActionResultModal, type ActionResultType } from "@/components/ui/Action
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { Tabs } from "@/components/ui/Tabs/Tabs";
 import { ApplicationCard } from "@/components/verification/ApplicationCard/ApplicationCard";
 import { ApplicationFormModal } from "@/components/verification/ApplicationFormModal/ApplicationFormModal";
@@ -16,6 +17,7 @@ import { SmartFloodIcon } from "@/components/icons/SmartFloodIcon";
 import styles from "./VerificationPanel.module.css";
 
 export function VerificationPanel() {
+  const pageSize = 5;
   const [activeTab, setActiveTab] = useState<VerificationStatus>("pending");
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
@@ -24,6 +26,7 @@ export function VerificationPanel() {
   const [selectedApplication, setSelectedApplication] = useState<VerificationApplication | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
   const [resultModal, setResultModal] = useState({
     open: false,
     type: "success" as ActionResultType,
@@ -71,6 +74,22 @@ export function VerificationPanel() {
     () => applications.filter((application) => application.status === activeTab),
     [activeTab, applications],
   );
+  const paginatedApplications = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(visibleApplications.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    return {
+      rows: visibleApplications.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: visibleApplications.length, totalPages } satisfies PaginationState,
+    };
+  }, [page, visibleApplications]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (page !== paginatedApplications.pagination.page) setPage(paginatedApplications.pagination.page);
+  }, [page, paginatedApplications.pagination.page]);
 
   const counts = useMemo(() => ({
     pending: String(applications.filter((application) => application.status === "pending").length),
@@ -164,7 +183,7 @@ export function VerificationPanel() {
       {error ? <ErrorState title="Unable to Load Applications" message={error} retryLabel="Retry" onRetry={fetchApplications} /> : null}
       {isLoading ? <LoadingState message="Loading applications..." /> : null}
       <div className={styles.list}>
-        {visibleApplications.map((application, index) => (
+        {paginatedApplications.rows.map((application, index) => (
           <ApplicationCard
             key={application.application_id || `${String(application.raw?.first_name ?? "")}-${String(application.raw?.last_name ?? "")}-${index}`}
             application={application}
@@ -181,6 +200,7 @@ export function VerificationPanel() {
           />
         ) : null}
       </div>
+      <SharedPagination pagination={paginatedApplications.pagination} onPageChange={setPage} label="Resident applications" />
       <ReviewModal
         isOpen={isReviewOpen}
         application={selectedApplication}

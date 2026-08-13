@@ -68,8 +68,7 @@
 }
 
 .tableScroll {
-  max-height: 340px;
-  overflow-y: auto;
+  overflow-x: auto;
   scrollbar-color: #9bc9ff transparent;
   scrollbar-width: thin;
 }

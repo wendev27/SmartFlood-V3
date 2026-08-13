@@ -151,8 +151,7 @@
 
 .wrap {
   flex: 1 1 auto;
-  max-height: clamp(320px, 42vh, 560px);
-  min-height: 260px;
+  min-height: 0;
   overflow: auto;
   scrollbar-color: #9bc9ff transparent;
   scrollbar-width: thin;
@@ -372,7 +371,7 @@
 }
 
 .connectedResidentsWrap {
-  max-height: 260px;
+  min-height: 0;
 }
 
 .connectedResidentsTable {

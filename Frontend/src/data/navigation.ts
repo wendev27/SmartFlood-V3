@@ -6,6 +6,7 @@ export const navigationItems: NavItem[] = [
   { key: "sensors", label: "Sensor History", icon: "signal" },
   { key: "relief", label: "AI-Optimized Relief Recommendation", icon: "cube" },
   { key: "reliefManagement", label: "Emergency Relief Management", icon: "document" },
+  { key: "reliefDistribution", label: "Relief Audit Reports", icon: "check" },
   { key: "residents", label: "Resident Information", icon: "users" },
   { key: "accounts", label: "Resident Account Registration Management", icon: "check" },
   { key: "logs", label: "Account Management", icon: "folder" },
@@ -23,6 +24,7 @@ export function navigationItemsForRole(role: DashboardRole): NavItem[] {
       { key: "monitoring", label: "Flood Monitoring Module", icon: "droplet" },
       { key: "relief", label: "AI-Optimized Relief Recommendation", icon: "cube" },
       { key: "reliefManagement", label: "Emergency Relief Management", icon: "document" },
+      { key: "reliefDistribution", label: "Relief Audit Reports", icon: "check" },
       { key: "residents", label: "Resident Information", icon: "users" },
       { key: "systemLogs", label: logsLabel, icon: "document" },
     ];

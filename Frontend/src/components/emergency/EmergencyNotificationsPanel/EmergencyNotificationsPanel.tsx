@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { cn } from "@/lib/cn";
 import {
   acceptEmergencyAllocationItem,
@@ -17,17 +18,31 @@ import styles from "./EmergencyNotificationsPanel.module.css";
 type ActionState = "idle" | "loading" | "accepting" | "rejecting" | "confirming" | "notifying";
 
 export function EmergencyNotificationsPanel() {
+  const pageSize = 5;
   const [notifications, setNotifications] = useState<EmergencyNotification[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [actionState, setActionState] = useState<ActionState>("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const selected = useMemo(
     () => notifications.find((notification) => notification.notification_id === selectedId) ?? null,
     [notifications, selectedId],
   );
   const unreadCount = notifications.filter((notification) => notification.status === "pending" || notification.status === "sent").length;
+  const paginatedNotifications = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(notifications.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    return {
+      rows: notifications.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: notifications.length, totalPages } satisfies PaginationState,
+    };
+  }, [notifications, page]);
+
+  useEffect(() => {
+    if (page !== paginatedNotifications.pagination.page) setPage(paginatedNotifications.pagination.page);
+  }, [page, paginatedNotifications.pagination.page]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,7 +192,7 @@ export function EmergencyNotificationsPanel() {
         <div className={styles.emptyState}>No emergency relief notifications for your barangay yet.</div>
       ) : (
         <div className={styles.grid}>
-          {notifications.map((notification) => (
+          {paginatedNotifications.rows.map((notification) => (
             <article className={styles.card} key={notification.notification_id}>
               <div className={styles.cardHeader}>
                 <span className={cn(styles.status, styles[statusTone(notification.status)])}>{formatStatus(notification.status)}</span>
@@ -193,6 +208,8 @@ export function EmergencyNotificationsPanel() {
           ))}
         </div>
       )}
+
+      <SharedPagination pagination={paginatedNotifications.pagination} onPageChange={setPage} label="Emergency notifications" />
 
       <Modal isOpen={Boolean(selected)} onClose={() => setSelectedId(null)} labelledBy="emergency-allocation-title" size="md">
         {selected ? (

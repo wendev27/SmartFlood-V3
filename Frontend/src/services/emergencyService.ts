@@ -5,8 +5,12 @@ import type {
   EmergencyNotificationListResponse,
   ReliefCampaignActionResponse,
   ReliefCampaignHistoryResponse,
+  ReliefBeneficiaryStatusFilter,
+  ReliefBeneficiaryStatusResponse,
   ReliefDistributionHistoryResponse,
+  ReliefDistributionReportResponse,
   ReliefDistributionVerifyResponse,
+  ReliefNotReceivedResponse,
 } from "@/types/emergency";
 
 export async function getEmergencyNotifications() {
@@ -67,10 +71,36 @@ export async function confirmReliefDistribution(batchId: string, identifier: str
   return response as ReliefDistributionVerifyResponse;
 }
 
-export async function getReliefDistributionHistory(batchId?: string | null) {
-  const query = batchId ? `?batch_id=${encodeURIComponent(batchId)}` : "";
+export async function getReliefDistributionHistory(batchId?: string | null, page?: number, limit?: number) {
+  const params = new URLSearchParams();
+  if (batchId) params.set("batch_id", batchId);
+  if (page) params.set("page", String(page));
+  if (limit) params.set("limit", String(limit));
+  const query = params.toString() ? `?${params.toString()}` : "";
   const data = await fetchJson<ReliefDistributionHistoryResponse>(`/api/emergency/distribution/history${query}`);
-  return data.distributions;
+  return data;
+}
+
+export async function getReliefDistributionReport(batchId: string) {
+  const data = await fetchJson<ReliefDistributionReportResponse>(`/api/emergency/distribution/report?batchId=${encodeURIComponent(batchId)}`);
+  return data;
+}
+
+export async function getReliefNotReceived(batchId: string, page = 1, limit = 5) {
+  const data = await fetchJson<ReliefNotReceivedResponse>(`/api/emergency/distribution/not-received?batchId=${encodeURIComponent(batchId)}&page=${page}&limit=${limit}`);
+  return data;
+}
+
+export async function getReliefBeneficiaryStatus(batchId: string, filter: ReliefBeneficiaryStatusFilter, search: string, page = 1, limit = 10) {
+  const params = new URLSearchParams({
+    batchId,
+    filter,
+    search,
+    page: String(page),
+    limit: String(limit),
+  });
+  const data = await fetchJson<ReliefBeneficiaryStatusResponse>(`/api/emergency/distribution/beneficiary-status?${params.toString()}`);
+  return data;
 }
 
 export function reliefDistributionExportUrl(batchId: string) {

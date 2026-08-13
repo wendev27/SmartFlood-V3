@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { getCurrentUser, type StoredSessionUser } from "@/lib/authSession";
 import { assignedBarangayForUser, isSameBarangayForUser } from "@/lib/barangayScope";
 import { fetchJson } from "@/services/apiClient";
@@ -115,6 +116,7 @@ const vulnerabilityCountFields = [
 ] as const;
 
 export function ResidentsPanel() {
+  const pageSize = 5;
   const [currentUser] = useState(() => getCurrentUser());
   const canViewResidentInfo = canViewResidents(currentUser);
   const canManageResidentRecords = canManageResidents(currentUser);
@@ -124,6 +126,9 @@ export function ResidentsPanel() {
   const [familyClusters, setFamilyClusters] = useState<FamilyRow[]>([]);
   const [residentSearch, setResidentSearch] = useState("");
   const [familySearch, setFamilySearch] = useState("");
+  const [residentPage, setResidentPage] = useState(1);
+  const [familyPage, setFamilyPage] = useState(1);
+  const [connectedResidentPage, setConnectedResidentPage] = useState(1);
   const [selectedFamily, setSelectedFamily] = useState<FamilyRow | null>(null);
   const [isResidentsLoading, setIsResidentsLoading] = useState(true);
   const [isFamiliesLoading, setIsFamiliesLoading] = useState(true);
@@ -172,12 +177,63 @@ export function ResidentsPanel() {
     [familyClusters, familySearch],
   );
 
+  const paginatedResidents = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(displayedResidents.length / pageSize));
+    const safePage = Math.min(residentPage, totalPages);
+    return {
+      rows: displayedResidents.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: displayedResidents.length, totalPages } satisfies PaginationState,
+    };
+  }, [displayedResidents, residentPage]);
+
+  const paginatedFamilies = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(displayedFamilies.length / pageSize));
+    const safePage = Math.min(familyPage, totalPages);
+    return {
+      rows: displayedFamilies.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: displayedFamilies.length, totalPages } satisfies PaginationState,
+    };
+  }, [displayedFamilies, familyPage]);
+
+  useEffect(() => {
+    setResidentPage(1);
+  }, [residentSearch]);
+
+  useEffect(() => {
+    setFamilyPage(1);
+  }, [familySearch]);
+
+  useEffect(() => {
+    if (residentPage !== paginatedResidents.pagination.page) setResidentPage(paginatedResidents.pagination.page);
+  }, [paginatedResidents.pagination.page, residentPage]);
+
+  useEffect(() => {
+    if (familyPage !== paginatedFamilies.pagination.page) setFamilyPage(paginatedFamilies.pagination.page);
+  }, [familyPage, paginatedFamilies.pagination.page]);
+
   const connectedResidents = useMemo(
     () => selectedFamily?.family_id
       ? residents.filter((resident) => resident.family_id === selectedFamily.family_id)
       : [],
     [residents, selectedFamily],
   );
+
+  const paginatedConnectedResidents = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(connectedResidents.length / pageSize));
+    const safePage = Math.min(connectedResidentPage, totalPages);
+    return {
+      rows: connectedResidents.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: connectedResidents.length, totalPages } satisfies PaginationState,
+    };
+  }, [connectedResidentPage, connectedResidents]);
+
+  useEffect(() => {
+    setConnectedResidentPage(1);
+  }, [selectedFamily?.family_id]);
+
+  useEffect(() => {
+    if (connectedResidentPage !== paginatedConnectedResidents.pagination.page) setConnectedResidentPage(paginatedConnectedResidents.pagination.page);
+  }, [connectedResidentPage, paginatedConnectedResidents.pagination.page]);
 
   const refreshResidents = useCallback(async () => {
     setIsResidentsLoading(true);
@@ -446,12 +502,12 @@ export function ResidentsPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedResidents.map((resident, index) => (
+                  {paginatedResidents.rows.map((resident, index) => (
                     <tr
                       key={resident.resident_id || `${resident.first_name}-${resident.last_name}-${index}`}
                       className={cn(resident.selected && styles.selected)}
                     >
-                      <td>{String(index + 1).padStart(3, "0")}</td>
+                      <td>{String((residentPage - 1) * pageSize + index + 1).padStart(3, "0")}</td>
                       <td>
                         <span className={styles.linkText}>{resident.name}</span>
                       </td>
@@ -492,6 +548,7 @@ export function ResidentsPanel() {
                 </tbody>
               </table>
             </div>
+            <SharedPagination pagination={paginatedResidents.pagination} onPageChange={setResidentPage} label="Residents" />
           </div>
         </article>
 
@@ -530,9 +587,9 @@ export function ResidentsPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedFamilies.map((cluster, index) => (
+                  {paginatedFamilies.rows.map((cluster, index) => (
                     <tr key={cluster.family_id || `${cluster.familyName}-${index}`}>
-                      <td>{`FC-${String(index + 1).padStart(3, "0")}`}</td>
+                      <td>{`FC-${String((familyPage - 1) * pageSize + index + 1).padStart(3, "0")}`}</td>
                       <td>
                         <button className={styles.linkButton} type="button" onClick={() => setSelectedFamily(cluster)}>
                           {cluster.familyName}
@@ -565,6 +622,7 @@ export function ResidentsPanel() {
                 </tbody>
               </table>
             </div>
+            <SharedPagination pagination={paginatedFamilies.pagination} onPageChange={setFamilyPage} label="Family clusters" />
           </div>
         </article>
       </div>
@@ -732,6 +790,7 @@ export function ResidentsPanel() {
                   </tbody>
                 </table>
               </div>
+              <SharedPagination pagination={paginatedFamilies.pagination} onPageChange={setFamilyPage} label="Family cluster selection" />
             </section>
           )}
 
@@ -794,7 +853,7 @@ export function ResidentsPanel() {
                       </tr>
                     </thead>
                     <tbody>
-                      {connectedResidents.map((resident, index) => (
+                      {paginatedConnectedResidents.rows.map((resident, index) => (
                         <tr key={resident.resident_id || `${resident.first_name}-${resident.last_name}-${index}`}>
                           <td>{resident.name}</td>
                           <td>{resident.age}</td>
@@ -817,6 +876,7 @@ export function ResidentsPanel() {
                     </tbody>
                   </table>
                 </div>
+                <SharedPagination pagination={paginatedConnectedResidents.pagination} onPageChange={setConnectedResidentPage} label="Connected residents" />
               </section>
             </div>
           </>
