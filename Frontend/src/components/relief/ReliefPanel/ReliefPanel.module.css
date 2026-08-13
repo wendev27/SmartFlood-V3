@@ -177,6 +177,71 @@
   margin-bottom: 18px;
 }
 
+.activeAllocation {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.activeAllocationHeader {
+  align-items: flex-start;
+  background: #f8fbff;
+  border: 1px solid #d8e7fb;
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.activeAllocationHeader span {
+  color: #0f61ff;
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.activeAllocationHeader h4 {
+  color: #1f2937;
+  font-size: 15px;
+  line-height: 1.25;
+  margin: 0 0 6px;
+}
+
+.activeAllocationHeader p {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.notifyButton {
+  background: #0f61ff;
+  border: 1px solid #0f61ff;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+.notifyButton:hover,
+.notifyButton:focus-visible {
+  background: #0b4fd1;
+  outline: 0;
+}
+
+.notifyButton:disabled {
+  background: #edf2f7;
+  border-color: #cbd5e1;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
 .strategyIntro {
   background: #eef6ff;
   border: 1px solid #cfe2ff;
