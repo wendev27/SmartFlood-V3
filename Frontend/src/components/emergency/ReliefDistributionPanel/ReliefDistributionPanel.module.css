@@ -1,0 +1,296 @@
+.stack {
+  display: grid;
+  gap: 18px;
+}
+
+.summary,
+.card {
+  background: #ffffff;
+  border: 1px solid #dce9f9;
+  border-radius: 12px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  padding: clamp(18px, 2vw, 24px);
+}
+
+.summary {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.summary span,
+.cardHeader span,
+.allocationBox span {
+  color: #0f61ff;
+  display: block;
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+.summary h3,
+.cardHeader h3 {
+  color: #14385f;
+  font-size: 20px;
+  line-height: 1.2;
+  margin: 0 0 7px;
+}
+
+.summary p,
+.cardHeader p {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.summaryStats {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+}
+
+.metric {
+  background: #f8fbff;
+  border: 1px solid #dce9f9;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  min-height: 70px;
+  padding: 12px;
+}
+
+.metric strong {
+  color: #0f61ff;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.metric span {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.compactMetric strong {
+  color: #14385f;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.layout {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(320px, 1.2fr);
+}
+
+.card {
+  display: grid;
+  gap: 16px;
+}
+
+.verifyForm {
+  display: grid;
+  gap: 12px;
+}
+
+.verifyForm label {
+  color: #475569;
+  display: grid;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 8px;
+  text-transform: uppercase;
+}
+
+.verifyForm input {
+  border: 1px solid #d8e7fb;
+  border-radius: 8px;
+  color: #14385f;
+  font-size: 13px;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.verifyForm input:focus {
+  outline: 2px solid rgba(15, 97, 255, 0.18);
+  outline-offset: 2px;
+}
+
+.primaryButton {
+  background: #0966ff;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.stateMessage,
+.errorMessage,
+.emptyState {
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 12px 14px;
+}
+
+.stateMessage {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.errorMessage {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.emptyState {
+  background: #f8fbff;
+  border: 1px dashed #cfe2ff;
+  color: #64748b;
+}
+
+.resultCard {
+  border-left: 5px solid #dce9f9;
+}
+
+.success {
+  border-left-color: #12b76a;
+}
+
+.warning {
+  border-left-color: #f79009;
+}
+
+.danger {
+  border-left-color: #f04438;
+}
+
+.details {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.details div,
+.allocationBox,
+.duplicateBox {
+  background: #f8fbff;
+  border: 1px solid #dce9f9;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.details dt {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 900;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+}
+
+.details dd {
+  color: #14385f;
+  font-size: 12px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.allocationBox strong,
+.duplicateBox strong,
+.duplicateBox span {
+  display: block;
+}
+
+.allocationBox strong {
+  color: #14385f;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.allocationBox p {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.duplicateBox {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.duplicateBox strong {
+  color: #9a3412;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.duplicateBox span {
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+.historyList {
+  display: grid;
+  gap: 10px;
+}
+
+.historyList article {
+  align-items: center;
+  background: #f8fbff;
+  border: 1px solid #dce9f9;
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.historyList strong,
+.historyList span {
+  display: block;
+}
+
+.historyList strong {
+  color: #14385f;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.historyList span,
+.historyList time {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+@media (max-width: 860px) {
+  .summary,
+  .historyList article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .layout,
+  .summaryStats,
+  .details {
+    grid-template-columns: 1fr;
+  }
+}

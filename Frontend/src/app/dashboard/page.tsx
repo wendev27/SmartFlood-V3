@@ -8,6 +8,7 @@ import { SystemLogs } from "@/components/logs/SystemLogs/SystemLogs";
 import { MonitoringPanel, type MonitoringView } from "@/components/monitoring/MonitoringPanel/MonitoringPanel";
 import { ReliefPanel } from "@/components/relief/ReliefPanel/ReliefPanel";
 import { EmergencyNotificationsPanel } from "@/components/emergency/EmergencyNotificationsPanel/EmergencyNotificationsPanel";
+import { ReliefDistributionPanel } from "@/components/emergency/ReliefDistributionPanel/ReliefDistributionPanel";
 import { SensorsPanel } from "@/components/sensors/SensorsPanel/SensorsPanel";
 import { ResidentsPanel } from "@/components/residents/ResidentsPanel/ResidentsPanel";
 import { VerificationPanel } from "@/components/verification/VerificationPanel/VerificationPanel";
@@ -22,6 +23,7 @@ const pageKeys: PageKey[] = [
   "monitoring",
   "relief",
   "emergencyNotifications",
+  "reliefDistribution",
   "sensors",
   "residents",
   "accounts",
@@ -121,6 +123,7 @@ export default function DashboardPage() {
       {activePage === "monitoring" ? <MonitoringPanel resetSignal={monitoringResetVersion} onViewChange={setMonitoringView} userProfile={session.profile} /> : null}
       {activePage === "relief" ? <ReliefPanel /> : null}
       {activePage === "emergencyNotifications" ? <EmergencyNotificationsPanel /> : null}
+      {activePage === "reliefDistribution" ? <ReliefDistributionPanel /> : null}
       {activePage === "sensors" ? <SensorsPanel /> : null}
       {activePage === "residents" ? <ResidentsPanel /> : null}
       {activePage === "accounts" ? <VerificationPanel /> : null}

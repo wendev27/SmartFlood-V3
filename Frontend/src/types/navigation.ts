@@ -5,6 +5,7 @@ export type PageKey =
   | "monitoring"
   | "relief"
   | "emergencyNotifications"
+  | "reliefDistribution"
   | "sensors"
   | "residents"
   | "accounts";

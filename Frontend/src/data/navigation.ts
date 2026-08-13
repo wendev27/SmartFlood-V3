@@ -40,6 +40,7 @@ export function navigationItemsForRole(role: DashboardRole): NavItem[] {
     { key: "monitoring", label: "Flood Monitoring Module", icon: "droplet" },
     { key: "sensors", label: "Sensor History", icon: "signal" },
     { key: "emergencyNotifications", label: "Emergency Notifications", icon: "document" },
+    { key: "reliefDistribution", label: "Relief Distribution", icon: "check" },
     { key: "residents", label: "Resident Information", icon: "users" },
     { key: "accounts", label: "Resident Account Registration Management", icon: "check" },
     { key: "systemLogs", label: logsLabel, icon: "document" },
