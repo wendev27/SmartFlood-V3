@@ -7,6 +7,8 @@ import {
   confirmReliefDistribution,
   getReliefCampaignHistory,
   getReliefDistributionHistory,
+  reliefDistributionExportUrl,
+  reliefDistributionScannerUrl,
   verifyReliefDistribution,
 } from "@/services/emergencyService";
 import type {
@@ -41,6 +43,10 @@ export function ReliefDistributionPanel() {
     [campaigns],
   );
   const selectedIsActive = selectedCampaign?.status === "in_distribution";
+  const selectedIsDistributable = Boolean(
+    selectedCampaign?.status === "in_distribution"
+    && (selectedCampaign.progress?.barangays ?? []).some((barangay) => barangay.barangay_status === "family_heads_notified"),
+  );
   const receivedCount = history.filter((record) => record.status === "received").length;
   const barangayCount = selectedCampaign?.progress?.total_barangays ?? selectedCampaign?.progress?.barangays?.length ?? 0;
   const selectedScope = selectedCampaign ? campaignScopeLabel(selectedCampaign) : "No campaign selected";
@@ -116,6 +122,16 @@ export function ReliefDistributionPanel() {
     setResult(null);
     setMessage(null);
     setError(null);
+  }
+
+  function openScannerWindow() {
+    if (!selectedCampaign || !selectedIsDistributable) return;
+    window.open(reliefDistributionScannerUrl(selectedCampaign.batch_id), "_blank", "noopener,noreferrer");
+  }
+
+  function exportCampaignRecords() {
+    if (!selectedCampaign) return;
+    window.open(reliefDistributionExportUrl(selectedCampaign.batch_id), "_blank", "noopener,noreferrer");
   }
 
   async function handleVerify(event: FormEvent<HTMLFormElement>) {
@@ -214,6 +230,17 @@ export function ReliefDistributionPanel() {
             <Detail label="Received" value={String(receivedCount)} />
             <Detail label="Barangay Scope" value={selectedScope} />
           </dl>
+          <div className={styles.actionRow}>
+            <button className={styles.primaryButton} type="button" disabled={!selectedIsDistributable} onClick={openScannerWindow}>
+              Open QR Scanner
+            </button>
+            <button className={styles.secondaryButton} type="button" onClick={exportCampaignRecords}>
+              Export Excel
+            </button>
+          </div>
+          {!selectedIsDistributable && selectedCampaign.status === "in_distribution" ? (
+            <p className={styles.warningMessage}>Your barangay allocation is not ready for beneficiary QR distribution yet.</p>
+          ) : null}
         </section>
       ) : null}
 
@@ -228,7 +255,7 @@ export function ReliefDistributionPanel() {
                 : `${selectedCampaign.plan_name} is ${formatStatus(selectedCampaign.status)} and cannot accept new distributions.`}
             </p>
           </header>
-          {selectedIsActive ? <form className={styles.verifyForm} onSubmit={handleVerify}>
+          {selectedIsDistributable ? <form className={styles.verifyForm} onSubmit={handleVerify}>
             <label>
               Beneficiary QR / Identifier
               <input
@@ -241,7 +268,7 @@ export function ReliefDistributionPanel() {
             <button className={styles.primaryButton} type="submit" disabled={state === "verifying" || state === "confirming"}>
               {state === "verifying" ? "Verifying..." : "Verify Beneficiary"}
             </button>
-          </form> : <div className={styles.emptyState}>Historical campaigns are view-only.</div>}
+          </form> : <div className={styles.emptyState}>{distributionUnavailableCopy(selectedCampaign)}</div>}
         </section>
 
         <DistributionResultCard
@@ -538,6 +565,13 @@ function campaignScopeLabel(campaign: ReliefCampaign) {
   if (barangays.length === 1) return barangays[0]?.barangay_name || "Assigned barangay";
   if (barangays.length > 1) return `${barangays.length} barangays`;
   return "Visible scope";
+}
+
+function distributionUnavailableCopy(campaign: ReliefCampaign) {
+  if (campaign.status === "in_distribution") return "Your barangay allocation is not ready for beneficiary QR distribution yet.";
+  if (campaign.status === "barangays_notified") return "Distribution not started. Family-head notification and distribution preparation are still incomplete.";
+  if (campaign.status === "accepted") return "Distribution has not started yet.";
+  return "Historical campaigns are view-only.";
 }
 
 function shortId(value?: string | null) {
