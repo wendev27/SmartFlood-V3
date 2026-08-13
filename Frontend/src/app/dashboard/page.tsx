@@ -7,6 +7,7 @@ import { LogsPanel } from "@/components/logs/LogsPanel/LogsPanel";
 import { SystemLogs } from "@/components/logs/SystemLogs/SystemLogs";
 import { MonitoringPanel, type MonitoringView } from "@/components/monitoring/MonitoringPanel/MonitoringPanel";
 import { ReliefPanel } from "@/components/relief/ReliefPanel/ReliefPanel";
+import { EmergencyNotificationsPanel } from "@/components/emergency/EmergencyNotificationsPanel/EmergencyNotificationsPanel";
 import { SensorsPanel } from "@/components/sensors/SensorsPanel/SensorsPanel";
 import { ResidentsPanel } from "@/components/residents/ResidentsPanel/ResidentsPanel";
 import { VerificationPanel } from "@/components/verification/VerificationPanel/VerificationPanel";
@@ -20,6 +21,7 @@ const pageKeys: PageKey[] = [
   "systemLogs",
   "monitoring",
   "relief",
+  "emergencyNotifications",
   "sensors",
   "residents",
   "accounts",
@@ -118,6 +120,7 @@ export default function DashboardPage() {
       {activePage === "systemLogs" ? <SystemLogs /> : null}
       {activePage === "monitoring" ? <MonitoringPanel resetSignal={monitoringResetVersion} onViewChange={setMonitoringView} userProfile={session.profile} /> : null}
       {activePage === "relief" ? <ReliefPanel /> : null}
+      {activePage === "emergencyNotifications" ? <EmergencyNotificationsPanel /> : null}
       {activePage === "sensors" ? <SensorsPanel /> : null}
       {activePage === "residents" ? <ResidentsPanel /> : null}
       {activePage === "accounts" ? <VerificationPanel /> : null}

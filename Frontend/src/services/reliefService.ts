@@ -1,6 +1,6 @@
 import { fetchEnvelope, fetchJson } from "@/services/apiClient";
 import { withAuditActor } from "@/lib/auditClient";
-import type { ReliefGenerationResponse } from "@/types/relief";
+import type { BarangayNotificationResponse, CurrentEmergencyAllocation, EmergencyWorkflowResponse, ReliefGenerationResponse } from "@/types/relief";
 
 export async function getReliefSummary() {
   return Promise.resolve([]);
@@ -31,9 +31,29 @@ export async function generateReliefRecommendations(payload: Record<string, numb
 }
 
 export async function approveReliefRecommendationPlan(plan: Record<string, unknown>) {
-  return fetchJson<Record<string, unknown>[]>("/api/ai/recommendations/approve", {
+  return fetchEnvelope<Record<string, unknown>[]>("/api/ai/recommendations/approve", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(withAuditActor({ plan })),
-  });
+  }) as Promise<EmergencyWorkflowResponse>;
+}
+
+export async function rejectReliefRecommendationPlan(plan: Record<string, unknown>) {
+  return fetchEnvelope<Record<string, unknown>[]>("/api/ai/recommendations/reject", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(withAuditActor({ plan })),
+  }) as Promise<EmergencyWorkflowResponse>;
+}
+
+export async function getCurrentEmergencyAllocation() {
+  return fetchJson<CurrentEmergencyAllocation | null>("/api/emergency/allocation/current");
+}
+
+export async function notifyBarangaysForEmergencyAllocation(batchId: string) {
+  return fetchEnvelope<CurrentEmergencyAllocation>(`/api/emergency/allocations/${encodeURIComponent(batchId)}/notify-barangays`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(withAuditActor({})),
+  }) as Promise<BarangayNotificationResponse>;
 }

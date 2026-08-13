@@ -21,6 +21,10 @@ export const pageCopy: Record<PageKey, PageCopy> = {
     title: "AI-Optimized Relief Recommendation",
     subtitle: "",
   },
+  emergencyNotifications: {
+    title: "Emergency Notifications",
+    subtitle: "Review emergency relief allocations sent to your barangay.",
+  },
   sensors: {
     title: "Sensor History",
     subtitle: "View and monitor sensor device readings",

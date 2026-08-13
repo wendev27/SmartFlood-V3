@@ -13,9 +13,12 @@ import { getFloodStatusLabel } from "@/lib/statusStyles";
 import {
   approveReliefRecommendationPlan,
   generateReliefRecommendations,
+  getCurrentEmergencyAllocation,
   getReliefRecommendations,
+  notifyBarangaysForEmergencyAllocation,
+  rejectReliefRecommendationPlan,
 } from "@/services/reliefService";
-import type { AhpBreakdown, ReliefAllocationPlan, ReliefPlanId, ReliefRecommendation } from "@/types/relief";
+import type { AhpBreakdown, CurrentEmergencyAllocation, EmergencyAllocationItem, ReliefAllocationPlan, ReliefPlanId, ReliefRecommendation } from "@/types/relief";
 import styles from "./ReliefPanel.module.css";
 
 type HistoryEntry = ReturnType<typeof mapHistory>;
@@ -52,6 +55,7 @@ export function ReliefPanel() {
   const [isGenerationOpen, setIsGenerationOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReliefRecommendation | null>(null);
   const [generatedPlans, setGeneratedPlans] = useState<ReliefAllocationPlan[]>([]);
+  const [currentEmergencyAllocation, setCurrentEmergencyAllocation] = useState<CurrentEmergencyAllocation | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<ReliefPlanId | "">("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyDateFilter, setHistoryDateFilter] = useState<HistoryDateFilter>("");
@@ -62,6 +66,7 @@ export function ReliefPanel() {
   const [error, setError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [isNotifyingBarangays, setIsNotifyingBarangays] = useState(false);
   const [resultModal, setResultModal] = useState({
     open: false,
     type: "success" as ActionResultType,
@@ -77,11 +82,15 @@ export function ReliefPanel() {
       setIsLoading(true);
       setError("");
       try {
-        const recommendationRows = await getReliefRecommendations();
+        const [recommendationRows, currentAllocation] = await Promise.all([
+          getReliefRecommendations(),
+          getCurrentEmergencyAllocation(),
+        ]);
 
         if (cancelled) return;
 
         setHistory(recommendationRows.map(mapHistory));
+        setCurrentEmergencyAllocation(currentAllocation);
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load relief data.");
       } finally {
@@ -103,6 +112,10 @@ export function ReliefPanel() {
   const selectedRecommendations = useMemo(
     () => selectedPlan?.allocations.map((allocation, index) => mapRecommendation(allocation as Record<string, unknown>, index, selectedPlan)) ?? [],
     [selectedPlan],
+  );
+  const currentAllocationRecommendations = useMemo(
+    () => currentEmergencyAllocation?.items.map(mapEmergencyAllocationItem) ?? [],
+    [currentEmergencyAllocation],
   );
   const historyBarangays = useMemo(() => Array.from(new Set(history.map((entry) => entry.barangay).filter(Boolean))).sort(), [history]);
   const filteredHistory = useMemo(() => {
@@ -205,9 +218,14 @@ export function ReliefPanel() {
     setIsApproving(true);
     setError("");
     try {
-      const savedRows = await approveReliefRecommendationPlan(selectedPlan as unknown as Record<string, unknown>);
-      const latestRows = savedRows.length > 0 ? savedRows : await getReliefRecommendations();
+      const workflow = await approveReliefRecommendationPlan(selectedPlan as unknown as Record<string, unknown>);
+      const savedRows = Array.isArray(workflow.data) ? workflow.data : [];
+      const [latestRows, currentAllocation] = await Promise.all([
+        savedRows.length > 0 ? Promise.resolve(savedRows) : getReliefRecommendations(),
+        getCurrentEmergencyAllocation(),
+      ]);
       setHistory(latestRows.map(mapHistory));
+      setCurrentEmergencyAllocation(currentAllocation);
       setGeneratedPlans([]);
       setSelectedPlanId("");
       setSelectedReport(null);
@@ -216,7 +234,9 @@ export function ReliefPanel() {
         type: "success",
         title: "Recommendation Accepted",
         description: `${selectedPlan.plan_name} was recorded in allocation history.`,
-        details: "The selected strategy is now saved for review in the allocation history table.",
+        details: workflow.batch_id
+          ? `Emergency allocation batch ${shortenId(workflow.batch_id)} was created for Phase 1 review.`
+          : "The selected strategy is now saved for review in the allocation history table.",
       });
     } catch (approvalError) {
       setResultModal({
@@ -232,16 +252,80 @@ export function ReliefPanel() {
   }
 
   function declineGeneratedPlans() {
-    setGeneratedPlans([]);
-    setSelectedPlanId("");
-    setSelectedReport(null);
-    setResultModal({
-      open: true,
-      type: "success",
-      title: "Recommendation Declined",
-      description: "The generated allocation plans were discarded.",
-      details: "You can generate a new recommendation with updated inventory values.",
-    });
+    void rejectSelectedPlan();
+  }
+
+  async function rejectSelectedPlan() {
+    if (!selectedPlan) {
+      setGeneratedPlans([]);
+      setSelectedPlanId("");
+      setSelectedReport(null);
+      return;
+    }
+
+    setIsApproving(true);
+    setError("");
+    try {
+      const workflow = await rejectReliefRecommendationPlan(selectedPlan as unknown as Record<string, unknown>);
+      const currentAllocation = await getCurrentEmergencyAllocation();
+      setCurrentEmergencyAllocation(currentAllocation);
+      setGeneratedPlans([]);
+      setSelectedPlanId("");
+      setSelectedReport(null);
+      setResultModal({
+        open: true,
+        type: "success",
+        title: "Recommendation Rejected",
+        description: `${selectedPlan.plan_name} was rejected.`,
+        details: workflow.batch_id
+          ? `Rejected emergency allocation batch ${shortenId(workflow.batch_id)} was recorded.`
+          : "The generated allocation plans were discarded.",
+      });
+    } catch (rejectError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Failed to Reject Recommendation",
+        description: rejectError instanceof Error ? rejectError.message : "Unable to reject the selected recommendation.",
+        details: "Please verify the backend service and try rejecting the strategy again.",
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  }
+
+  async function notifyBarangays() {
+    if (!currentEmergencyAllocation || currentEmergencyAllocation.status !== "accepted") return;
+
+    setIsNotifyingBarangays(true);
+    setError("");
+    try {
+      const response = await notifyBarangaysForEmergencyAllocation(currentEmergencyAllocation.batch_id);
+      if (response.data) {
+        setCurrentEmergencyAllocation(response.data);
+      } else {
+        setCurrentEmergencyAllocation(await getCurrentEmergencyAllocation());
+      }
+      setResultModal({
+        open: true,
+        type: "success",
+        title: response.already_notified ? "Barangays Already Notified" : "Barangays Notified",
+        description: response.already_notified
+          ? "The emergency allocation batch had already been sent to barangays."
+          : "Barangay allocation notifications were created successfully.",
+        details: `Notifications created: ${response.notifications_created ?? 0}.`,
+      });
+    } catch (notifyError) {
+      setResultModal({
+        open: true,
+        type: "error",
+        title: "Failed to Notify Barangays",
+        description: notifyError instanceof Error ? notifyError.message : "Unable to create barangay notifications.",
+        details: "The active allocation state was preserved. Please verify the workflow state and try again.",
+      });
+    } finally {
+      setIsNotifyingBarangays(false);
+    }
   }
 
   return (
@@ -251,9 +335,9 @@ export function ReliefPanel() {
           <div className={styles.panelHeader}>
             <div>
               <h3>AI Allocation Suggestions</h3>
-              <p>{generatedPlans.length > 0 ? "Choose how SmartFlood should prioritize relief allocation." : "Generate AI allocation plans from current flood data and available inventory."}</p>
+              <p>{currentEmergencyAllocation ? "Review the persisted emergency allocation workflow." : generatedPlans.length > 0 ? "Choose how SmartFlood should prioritize relief allocation." : "Generate AI allocation plans from current flood data and available inventory."}</p>
             </div>
-            {generatedPlans.length === 0 ? <div className={styles.actions}>
+            {generatedPlans.length === 0 && !currentEmergencyAllocation ? <div className={styles.actions}>
               <Button className={styles.actionButton} onClick={openGenerationModal} disabled={isGenerating}>
                 {isGenerating ? "Generating..." : "Generate Recommendation"}
               </Button>
@@ -263,6 +347,75 @@ export function ReliefPanel() {
           {isLoading ? <LoadingState message="Loading relief data..." /> : null}
 
           {isGenerating ? <p className={styles.stateMessage}>Generating AI allocation plans...</p> : null}
+
+          {!isLoading && !isGenerating && currentEmergencyAllocation && generatedPlans.length === 0 ? (
+            <section className={styles.activeAllocation} aria-label="Active emergency allocation">
+              <div className={styles.activeAllocationHeader}>
+                <div>
+                  <span>Active Emergency Allocation</span>
+                  <h4>{currentEmergencyAllocation.plan_name}</h4>
+                  <p>Status: {formatWorkflowStatus(currentEmergencyAllocation.status)}</p>
+                </div>
+                {currentEmergencyAllocation.status === "accepted" ? (
+                  <button
+                    className={styles.notifyButton}
+                    type="button"
+                    disabled={isNotifyingBarangays}
+                    onClick={notifyBarangays}
+                  >
+                    {isNotifyingBarangays ? "Notifying..." : "Notify Barangays"}
+                  </button>
+                ) : currentEmergencyAllocation.status === "barangays_notified" ? (
+                  <button className={styles.notifyButton} type="button" disabled>
+                    Barangays Notified
+                  </button>
+                ) : null}
+              </div>
+              <div className={styles.recommendationList}>
+                {currentAllocationRecommendations.map((recommendation, index) => (
+                  <article
+                    className={styles.recommendationCard}
+                    key={recommendation.recommendation_id || `${recommendation.barangay}-${index}`}
+                    onClick={() => setSelectedReport(recommendation)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedReport(recommendation);
+                      }
+                    }}
+                    aria-label={`View active allocation for ${formatBarangayName(recommendation.barangay)}`}
+                  >
+                    <div className={styles.cardTop}>
+                      <span className={styles.rank}>{recommendation.id}</span>
+                      <h4>{formatBarangayName(recommendation.barangay)}</h4>
+                      <button
+                        className={styles.viewButton}
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedReport(recommendation);
+                        }}
+                      >
+                        View Analysis
+                      </button>
+                    </div>
+                    <div className={styles.cardDetails}>
+                      <div>
+                        <span>Barangay Status</span>
+                        <p>{formatWorkflowStatus(String(currentEmergencyAllocation.items[index]?.barangay_status ?? "pending"))}</p>
+                      </div>
+                      <div>
+                        <span>Active Allocation</span>
+                        <p>{recommendation.recommendedItems}</p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {!isLoading && !isGenerating && generatedPlans.length > 0 ? (
             <section className={styles.strategySection} aria-label="Allocation strategy selection">
@@ -362,7 +515,7 @@ export function ReliefPanel() {
             </div>
           ) : null}
 
-          {!isLoading && !isGenerating && generatedPlans.length === 0 ? (
+          {!isLoading && !isGenerating && generatedPlans.length === 0 && !currentEmergencyAllocation ? (
               <EmptyState
                 title="No allocation plans generated yet"
                 description="Generate a recommendation once flood data is available, then choose a strategy to review barangay allocations."
@@ -847,6 +1000,36 @@ function mapRecommendation(row: Record<string, unknown>, index: number, plan?: R
   };
 }
 
+function mapEmergencyAllocationItem(item: EmergencyAllocationItem, index: number): ReliefRecommendation {
+  const familyFoodPacks = Number(item.family_food_packs ?? 0);
+  const individualGoods = Number(item.individual_relief_goods ?? 0);
+  const emergencyKits = Number(item.emergency_kits ?? 0);
+  const hasAllocation = familyFoodPacks + individualGoods + emergencyKits > 0;
+
+  return {
+    recommendation_id: item.recommendation_id ? String(item.recommendation_id) : item.item_id,
+    id: String(index + 1),
+    barangay_name: item.barangay_name,
+    barangay: item.barangay_name,
+    riskLevel: "Restored workflow",
+    affectedFamilies: 0,
+    familyFoodPacks,
+    medicineKits: emergencyKits,
+    reliefForIndividual: individualGoods,
+    hasSensorReading: false,
+    recommendedItems: hasAllocation
+      ? `${familyFoodPacks} food packs, ${emergencyKits} emergency kits, ${individualGoods} individual goods`
+      : "No relief items allocated for this barangay.",
+    analysisReason: `Persisted emergency allocation restored from batch workflow. Barangay status is ${formatWorkflowStatus(item.barangay_status)}.`,
+    report: `Persisted emergency allocation restored from batch workflow. Barangay status is ${formatWorkflowStatus(item.barangay_status)}.`,
+    reasoningSteps: [
+      "This allocation was loaded from the accepted emergency workflow in Supabase.",
+      "No AI generation was triggered during page load.",
+      "Barangay notifications are reserved for the next phase.",
+    ],
+  };
+}
+
 function affectedFamiliesFromReason(reason: string) {
   const match = reason.match(/(\d+)\s+affected/i);
   return match ? Number(match[1]) : 0;
@@ -861,6 +1044,11 @@ function formatRiskLevel(value: string) {
   const normalized = value.replace(/_/g, " ").trim().toLowerCase();
   if (/^(critical|severe|severity|warning|alert|no reading|normal)$/.test(normalized)) return getFloodStatusLabel(normalized);
   return normalized ? capitalize(normalized) : "No reading";
+}
+
+function formatWorkflowStatus(value: string) {
+  const normalized = value.replace(/_/g, " ").trim().toLowerCase();
+  return normalized ? normalized.replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Unknown";
 }
 
 function ReportDetail({ label, value }: { label: string; value: string | number }) {

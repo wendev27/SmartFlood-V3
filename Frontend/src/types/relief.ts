@@ -118,3 +118,44 @@ export interface ReliefGenerationResponse {
   data?: Record<string, unknown>[];
   plans?: ReliefAllocationPlan[];
 }
+
+export interface EmergencyWorkflowResponse {
+  success?: boolean;
+  batch_id?: string;
+  plan_id?: ReliefPlanId | string;
+  plan_name?: string;
+  status?: string;
+  items?: Record<string, unknown>[];
+  data?: Record<string, unknown>[];
+  duplicate?: boolean;
+}
+
+export interface EmergencyAllocationItem {
+  item_id: string;
+  batch_id?: string;
+  recommendation_id?: string | null;
+  barangay_id: number;
+  barangay_name: string;
+  family_food_packs: number;
+  individual_relief_goods: number;
+  emergency_kits: number;
+  barangay_status: string;
+  created_at?: string | null;
+}
+
+export interface CurrentEmergencyAllocation {
+  batch_id: string;
+  plan_id: ReliefPlanId | string;
+  plan_name: string;
+  status: string;
+  created_at?: string | null;
+  accepted_at?: string | null;
+  items: EmergencyAllocationItem[];
+}
+
+export interface BarangayNotificationResponse {
+  success?: boolean;
+  data?: CurrentEmergencyAllocation | null;
+  notifications_created?: number;
+  already_notified?: boolean;
+}
