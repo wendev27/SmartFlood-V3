@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDashboardViewer } from "@/lib/dashboardViewer";
-import { getDistributionHistoryForViewerByBatch } from "@/lib/emergencyDistribution";
+import { getDistributionHistoryForViewerByBatchPaginated } from "@/lib/emergencyDistribution";
+import { paginationFrom } from "@/lib/emergencyReports";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,12 +11,16 @@ export async function GET(request: NextRequest) {
     }
 
     const batchId = request.nextUrl.searchParams.get("batch_id") ?? request.nextUrl.searchParams.get("batchId");
-    const result = await getDistributionHistoryForViewerByBatch(viewer, stringifyOrNull(batchId));
+    const hasPagination = request.nextUrl.searchParams.has("page") || request.nextUrl.searchParams.has("limit");
+    const pagination = hasPagination
+      ? paginationFrom(request.nextUrl.searchParams.get("page"), request.nextUrl.searchParams.get("limit"))
+      : null;
+    const result = await getDistributionHistoryForViewerByBatchPaginated(viewer, stringifyOrNull(batchId), pagination);
     if (result.status === "UNAUTHORIZED") {
       return NextResponse.json({ success: false, error: result.reason }, { status: 403 });
     }
 
-    return NextResponse.json({ success: true, data: { distributions: result.distributions } });
+    return NextResponse.json({ success: true, data: { distributions: result.distributions, pagination: result.pagination } });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Unable to load relief distribution history." }, { status: 500 });
   }

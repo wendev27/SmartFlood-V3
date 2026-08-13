@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { withAuditActor } from "@/lib/auditClient";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { fetchJson } from "@/services/apiClient";
@@ -83,6 +84,7 @@ const barangayOptions = [
 ];
 
 export function AccountManagement() {
+  const pageSize = 5;
   const [users, setUsers] = useState<AccountUserRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,6 +93,7 @@ export function AccountManagement() {
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [formMode, setFormMode] = useState<AccountFormMode>("add");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState<AccountFormState>(emptyForm);
@@ -152,6 +155,22 @@ export function AccountManagement() {
       && (!roleFilter || user.role_label === roleFilter)
       && (!statusFilter || user.status === statusFilter);
   }), [departmentFilter, roleFilter, search, statusFilter, users]);
+  const paginatedUsers = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(displayedUsers.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    return {
+      rows: displayedUsers.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: displayedUsers.length, totalPages } satisfies PaginationState,
+    };
+  }, [displayedUsers, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [departmentFilter, roleFilter, search, statusFilter]);
+
+  useEffect(() => {
+    if (page !== paginatedUsers.pagination.page) setPage(paginatedUsers.pagination.page);
+  }, [page, paginatedUsers.pagination.page]);
 
   function openAddForm() {
     setFormMode("add");
@@ -342,12 +361,13 @@ export function AccountManagement() {
           setDepartmentFilter("");
           setRoleFilter("");
           setStatusFilter("");
+          setPage(1);
         }}>Reset</button>
         <button type="button" className={styles.addButton} onClick={openAddForm}>+ Add New</button>
       </div>
       {error ? <ErrorState title="Unable to Load Accounts" message={error} retryLabel="Retry" onRetry={refreshUsers} /> : null}
       <DataTable className={styles.tableScroll} headers={["Name / Email", "Role", "Department / Barangay", "Status", "Actions"]} minWidth={880}>
-        {displayedUsers.map((user, index) => (
+        {paginatedUsers.rows.map((user, index) => (
           <tr key={user.id || `${user.email}-${index}`}>
             <td>
               <strong className={styles.userName}>{user.full_name || "Unnamed account"}</strong>
@@ -384,6 +404,7 @@ export function AccountManagement() {
           </tr>
         ) : null}
       </DataTable>
+      <SharedPagination pagination={paginatedUsers.pagination} onPageChange={setPage} label="Account users" />
 
       <Modal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} labelledBy="account-form-title" className={styles.accountDialog}>
         <header className={styles.modalHeader}>

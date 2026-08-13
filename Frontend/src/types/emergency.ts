@@ -130,6 +130,71 @@ export interface ReliefDistributionVerifyResponse {
 
 export interface ReliefDistributionHistoryResponse {
   distributions: ReliefDistributionRecord[];
+  pagination?: Pagination;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ReliefNotReceivedBeneficiary {
+  family_id: string;
+  family_name: string;
+  family_head_name?: string | null;
+  barangay_id: number;
+  barangay_name: string;
+  eligibility: string;
+  distribution_status: string;
+}
+
+export interface ReliefNotReceivedResponse {
+  beneficiaries: ReliefNotReceivedBeneficiary[];
+  pagination: Pagination;
+}
+
+export interface ReliefBarangayBreakdown {
+  barangay_id: number;
+  barangay_name: string;
+  eligible: number;
+  received: number;
+  not_received: number;
+  coverage: number;
+}
+
+export interface ReliefReportSummary {
+  campaign: ReliefCampaign;
+  barangays: number;
+  eligible: number;
+  received: number;
+  not_received: number;
+  coverage: number;
+}
+
+export interface ReliefDistributionReportResponse {
+  summary: ReliefReportSummary;
+  barangays: ReliefBarangayBreakdown[];
+}
+
+export type ReliefBeneficiaryStatusFilter = "all" | "received" | "not_received";
+
+export interface ReliefBeneficiaryStatusRow {
+  family_id: string;
+  family_name: string;
+  family_head_name?: string | null;
+  barangay_id: number;
+  barangay_name: string;
+  status: "received" | "not_received";
+  status_label: string;
+  received_at?: string | null;
+}
+
+export interface ReliefBeneficiaryStatusResponse {
+  summary: ReliefReportSummary;
+  beneficiaries: ReliefBeneficiaryStatusRow[];
+  pagination: Pagination;
 }
 
 export interface ReliefCampaignProgressBarangay {

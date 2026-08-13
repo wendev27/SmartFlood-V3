@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { SmartFloodIcon, type SmartFloodIconName } from "@/components/icons/SmartFloodIcon";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { cn } from "@/lib/cn";
 import { formatBarangayName } from "@/lib/formatters";
 import { getAuditLogs } from "@/services/logsService";
@@ -9,8 +10,23 @@ import type { AuditLog } from "@/types/logs";
 import styles from "./AuditLogs.module.css";
 
 export function AuditLogs() {
+  const pageSize = 5;
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+
+  const paginatedLogs = (() => {
+    const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    return {
+      rows: logs.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: logs.length, totalPages } satisfies PaginationState,
+    };
+  })();
+
+  useEffect(() => {
+    if (page !== paginatedLogs.pagination.page) setPage(paginatedLogs.pagination.page);
+  }, [page, paginatedLogs.pagination.page]);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +49,7 @@ export function AuditLogs() {
   return (
     <article className={styles.card}>
       <div className={styles.logList} aria-label="Audit log events">
-        {logs.map((log, index) => (
+        {paginatedLogs.rows.map((log, index) => (
           <section className={cn(styles.logItem, log.tone && styles[log.tone])} key={`${log.timestamp ?? log.created_at}-${log.title ?? log.action}-${index}`}>
             <span className={styles.logIcon}>
               <SmartFloodIcon name={auditIconMap[log.title ?? log.action] ?? "alertLevelUpdate"} size={20} />
@@ -57,6 +73,7 @@ export function AuditLogs() {
         {isLoading ? <p className={styles.empty}>Loading audit logs...</p> : null}
         {!isLoading && logs.length === 0 ? <p className={styles.empty}>No audit logs found.</p> : null}
       </div>
+      <SharedPagination pagination={paginatedLogs.pagination} onPageChange={setPage} label="Audit log events" />
     </article>
   );
 }

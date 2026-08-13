@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { cn } from "@/lib/cn";
 import { closeReliefCampaign, getReliefCampaignHistory, startReliefCampaign } from "@/services/emergencyService";
 import type { ReliefCampaign } from "@/types/emergency";
@@ -10,6 +11,7 @@ import styles from "./ReliefManagementPanel.module.css";
 type State = "idle" | "loading" | "starting" | "closing";
 
 export function ReliefManagementPanel() {
+  const pageSize = 5;
   const [campaigns, setCampaigns] = useState<ReliefCampaign[]>([]);
   const [selectedClose, setSelectedClose] = useState<ReliefCampaign | null>(null);
   const [expiresAt, setExpiresAt] = useState("");
@@ -17,11 +19,24 @@ export function ReliefManagementPanel() {
   const [state, setState] = useState<State>("loading");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
 
   const activeCampaign = useMemo(
     () => campaigns.find((campaign) => ["accepted", "barangays_notified", "in_distribution"].includes(campaign.status)) ?? null,
     [campaigns],
   );
+  const paginatedCampaigns = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(campaigns.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    return {
+      rows: campaigns.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: campaigns.length, totalPages } satisfies PaginationState,
+    };
+  }, [campaigns, page]);
+
+  useEffect(() => {
+    if (page !== paginatedCampaigns.pagination.page) setPage(paginatedCampaigns.pagination.page);
+  }, [page, paginatedCampaigns.pagination.page]);
 
   useEffect(() => {
     loadCampaigns();
@@ -159,7 +174,7 @@ export function ReliefManagementPanel() {
                 </tr>
               </thead>
               <tbody>
-                {campaigns.map((campaign) => (
+                {paginatedCampaigns.rows.map((campaign) => (
                   <tr key={campaign.batch_id}>
                     <td>{campaign.plan_name}</td>
                     <td><span className={cn(styles.status, styles[statusTone(campaign.status)])}>{formatStatus(campaign.status)}</span></td>
@@ -172,6 +187,7 @@ export function ReliefManagementPanel() {
             </table>
           </div>
         )}
+        <SharedPagination pagination={paginatedCampaigns.pagination} onPageChange={setPage} label="Relief campaigns" />
       </section>
 
       <Modal isOpen={Boolean(selectedClose)} onClose={() => setSelectedClose(null)} labelledBy="close-campaign-title" size="sm">

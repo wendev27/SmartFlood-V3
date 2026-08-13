@@ -92,10 +92,7 @@
 }
 
 .tableScroll.tableScroll {
-  max-height: min(620px, calc(100dvh - 310px));
-  min-height: 260px;
   overflow-x: auto;
-  overflow-y: auto;
   padding-right: 2px;
   scrollbar-color: #9bc9ff transparent;
   scrollbar-gutter: stable;

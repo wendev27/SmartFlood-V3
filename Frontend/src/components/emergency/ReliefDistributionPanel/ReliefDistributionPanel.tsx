@@ -2,9 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
+import { AdminReliefAuditPanel } from "@/components/emergency/ReliefDistributionPanel/AdminReliefAuditPanel";
 import { cn } from "@/lib/cn";
+import { getCurrentUser, normalizeUserRole } from "@/lib/authSession";
 import {
   confirmReliefDistribution,
+  getReliefBeneficiaryStatus,
   getReliefCampaignHistory,
   getReliefDistributionHistory,
   reliefDistributionExportUrl,
@@ -13,22 +17,40 @@ import {
 } from "@/services/emergencyService";
 import type {
   ReliefCampaign,
+  ReliefBeneficiaryStatusFilter,
+  ReliefBeneficiaryStatusRow,
   ReliefDistributionAllocation,
   ReliefDistributionBeneficiary,
   ReliefDistributionRecord,
   ReliefDistributionVerifyResponse,
+  ReliefReportSummary,
+  Pagination,
 } from "@/types/emergency";
 import styles from "./ReliefDistributionPanel.module.css";
 
 type LoadState = "idle" | "loading" | "verifying" | "confirming";
+const pageSize = 5;
 
 export function ReliefDistributionPanel() {
+  const role = normalizeUserRole(getCurrentUser());
+  if (role === "super" || role === "cswdd") return <AdminReliefAuditPanel />;
+
   const [campaigns, setCampaigns] = useState<ReliefCampaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<ReliefCampaign | null>(null);
   const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [result, setResult] = useState<ReliefDistributionVerifyResponse | null>(null);
   const [history, setHistory] = useState<ReliefDistributionRecord[]>([]);
+  const [historyPagination, setHistoryPagination] = useState<Pagination | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyRefreshVersion, setHistoryRefreshVersion] = useState(0);
+  const [beneficiaryStatusRows, setBeneficiaryStatusRows] = useState<ReliefBeneficiaryStatusRow[]>([]);
+  const [beneficiarySummary, setBeneficiarySummary] = useState<ReliefReportSummary | null>(null);
+  const [beneficiaryPagination, setBeneficiaryPagination] = useState<Pagination | null>(null);
+  const [beneficiaryFilter, setBeneficiaryFilter] = useState<ReliefBeneficiaryStatusFilter>("all");
+  const [beneficiarySearch, setBeneficiarySearch] = useState("");
+  const [beneficiaryPage, setBeneficiaryPage] = useState(1);
+  const [beneficiaryRefreshVersion, setBeneficiaryRefreshVersion] = useState(0);
   const [state, setState] = useState<LoadState>("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +69,7 @@ export function ReliefDistributionPanel() {
     selectedCampaign?.status === "in_distribution"
     && (selectedCampaign.progress?.barangays ?? []).some((barangay) => barangay.barangay_status === "family_heads_notified"),
   );
-  const receivedCount = history.filter((record) => record.status === "received").length;
+  const receivedCount = historyPagination?.total ?? history.filter((record) => record.status === "received").length;
   const barangayCount = selectedCampaign?.progress?.total_barangays ?? selectedCampaign?.progress?.barangays?.length ?? 0;
   const selectedScope = selectedCampaign ? campaignScopeLabel(selectedCampaign) : "No campaign selected";
 
@@ -85,14 +107,16 @@ export function ReliefDistributionPanel() {
     async function loadCampaignHistory() {
       if (!selectedCampaign) {
         setHistory([]);
+        setHistoryPagination(null);
         return;
       }
 
       try {
         setState("loading");
-        const rows = await getReliefDistributionHistory(selectedCampaign.batch_id);
+        const response = await getReliefDistributionHistory(selectedCampaign.batch_id, historyPage, pageSize);
         if (!cancelled) {
-          setHistory(rows);
+          setHistory(response.distributions);
+          setHistoryPagination(response.pagination ?? null);
           setError(null);
         }
       } catch (historyError) {
@@ -106,13 +130,54 @@ export function ReliefDistributionPanel() {
     return () => {
       cancelled = true;
     };
-  }, [selectedCampaign]);
+  }, [selectedCampaign, historyPage, historyRefreshVersion]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBeneficiaryStatus() {
+      if (!selectedCampaign) {
+        setBeneficiaryStatusRows([]);
+        setBeneficiarySummary(null);
+        setBeneficiaryPagination(null);
+        return;
+      }
+
+      try {
+        const response = await getReliefBeneficiaryStatus(
+          selectedCampaign.batch_id,
+          beneficiaryFilter,
+          beneficiarySearch,
+          beneficiaryPage,
+          pageSize,
+        );
+        if (!cancelled) {
+          setBeneficiaryStatusRows(response.beneficiaries);
+          setBeneficiarySummary(response.summary);
+          setBeneficiaryPagination(response.pagination);
+          setError(null);
+        }
+      } catch (statusError) {
+        if (!cancelled) setError(statusError instanceof Error ? statusError.message : "Unable to load beneficiary distribution status.");
+      }
+    }
+
+    loadBeneficiaryStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCampaign, beneficiaryFilter, beneficiarySearch, beneficiaryPage, beneficiaryRefreshVersion]);
 
   function selectCampaign(campaign: ReliefCampaign) {
     setSelectedCampaign(campaign);
     setIsSwitcherOpen(false);
     setIdentifier("");
     setResult(null);
+    setBeneficiaryFilter("all");
+    setBeneficiarySearch("");
+    setBeneficiaryPage(1);
+    setHistoryPage(1);
+    setHistoryPagination(null);
     setMessage(null);
     setError(null);
   }
@@ -181,6 +246,8 @@ export function ReliefDistributionPanel() {
         setMessage(`Relief distribution confirmed for ${selectedCampaign.plan_name}.`);
         const distribution = confirmation.data?.distribution;
         if (distribution) setHistory((current) => [distribution, ...current.filter((row) => row.distribution_id !== distribution.distribution_id)]);
+        setBeneficiaryRefreshVersion((version) => version + 1);
+        setHistoryRefreshVersion((version) => version + 1);
       } else if (confirmation.result === "ALREADY_RECEIVED") {
         setMessage(`Relief already received for ${selectedCampaign.plan_name}.`);
       } else {
@@ -287,6 +354,75 @@ export function ReliefDistributionPanel() {
         </section>
       )}
 
+      {selectedCampaign ? (
+        <section className={styles.card}>
+          <header className={styles.cardHeader}>
+            <span>Beneficiary Distribution Status</span>
+            <h3>Campaign Beneficiary Status</h3>
+            <p>Campaign-scoped eligibility and receipt status for your barangay.</p>
+          </header>
+          <div className={styles.summaryStats}>
+            <Metric label="Eligible" value={beneficiarySummary?.eligible ?? 0} compact />
+            <Metric label="Received" value={beneficiarySummary?.received ?? 0} compact />
+            <Metric label="Not Received" value={beneficiarySummary?.not_received ?? 0} compact />
+            <Metric label="Coverage" value={beneficiarySummary ? `${beneficiarySummary.coverage}%` : "0%"} compact />
+          </div>
+          <div className={styles.filterBar}>
+            <div className={styles.segmented} aria-label="Beneficiary status filter">
+              {(["all", "received", "not_received"] as ReliefBeneficiaryStatusFilter[]).map((filter) => (
+                <button
+                  className={beneficiaryFilter === filter ? styles.activeSegment : undefined}
+                  key={filter}
+                  type="button"
+                  onClick={() => {
+                    setBeneficiaryFilter(filter);
+                    setBeneficiaryPage(1);
+                  }}
+                >
+                  {beneficiaryFilterLabel(filter)}
+                </button>
+              ))}
+            </div>
+            <label className={styles.searchField}>
+              <span>Search</span>
+              <input
+                placeholder="Search family or family head..."
+                value={beneficiarySearch}
+                onChange={(event) => {
+                  setBeneficiarySearch(event.target.value);
+                  setBeneficiaryPage(1);
+                }}
+              />
+            </label>
+          </div>
+          <div className={styles.tableWrap}>
+            <table className={styles.reportTable}>
+              <thead>
+                <tr>
+                  <th>Family</th>
+                  <th>Family Head</th>
+                  <th>Status</th>
+                  <th>Received At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {beneficiaryStatusRows.length === 0 ? (
+                  <tr><td colSpan={4}>No beneficiaries match this campaign status view.</td></tr>
+                ) : beneficiaryStatusRows.map((row) => (
+                  <tr key={row.family_id}>
+                    <td>{row.family_name}</td>
+                    <td>{row.family_head_name ?? "Not recorded"}</td>
+                    <td>{row.status_label}</td>
+                    <td>{row.received_at ? formatDate(row.received_at) : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <SharedPagination pagination={beneficiaryPagination} onPageChange={setBeneficiaryPage} label="Beneficiary status" />
+        </section>
+      ) : null}
+
       {selectedCampaign ? <section className={styles.card}>
         <header className={styles.cardHeader}>
           <span>Campaign Records</span>
@@ -310,6 +446,7 @@ export function ReliefDistributionPanel() {
             ))}
           </div>
         )}
+        <SharedPagination pagination={historyPagination} onPageChange={setHistoryPage} label="Distribution history" />
       </section> : null}
 
       <Modal
@@ -375,10 +512,29 @@ function CampaignGroup({
   onSelect: (campaign: ReliefCampaign) => void;
   selectedBatchId: string | null;
 }) {
+  const pageSize = 5;
+  const [page, setPage] = useState(1);
+  const paginatedCampaigns = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(campaigns.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    return {
+      rows: campaigns.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: campaigns.length, totalPages } satisfies PaginationState,
+    };
+  }, [campaigns, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [campaigns]);
+
+  useEffect(() => {
+    if (page !== paginatedCampaigns.pagination.page) setPage(paginatedCampaigns.pagination.page);
+  }, [page, paginatedCampaigns.pagination.page]);
+
   return (
     <div className={styles.campaignGroup}>
       <h4>{label}</h4>
-      {campaigns.length === 0 ? <p className={styles.emptyState}>{emptyText}</p> : campaigns.map((campaign) => (
+      {campaigns.length === 0 ? <p className={styles.emptyState}>{emptyText}</p> : paginatedCampaigns.rows.map((campaign) => (
         <button
           className={cn(styles.campaignButton, selectedBatchId === campaign.batch_id && styles.selectedCampaignButton)}
           key={campaign.batch_id}
@@ -393,6 +549,7 @@ function CampaignGroup({
           <b>{actionLabel}</b>
         </button>
       ))}
+      <SharedPagination pagination={paginatedCampaigns.pagination} onPageChange={setPage} label={`${label} campaigns`} />
     </div>
   );
 }
@@ -478,6 +635,7 @@ function DistributionResultCard({
     </section>
   );
 }
+
 
 function Metric({ compact = false, label, value }: { compact?: boolean; label: string; value: number | string }) {
   return (
@@ -572,6 +730,12 @@ function distributionUnavailableCopy(campaign: ReliefCampaign) {
   if (campaign.status === "barangays_notified") return "Distribution not started. Family-head notification and distribution preparation are still incomplete.";
   if (campaign.status === "accepted") return "Distribution has not started yet.";
   return "Historical campaigns are view-only.";
+}
+
+function beneficiaryFilterLabel(filter: ReliefBeneficiaryStatusFilter) {
+  if (filter === "received") return "Received";
+  if (filter === "not_received") return "Not Received";
+  return "All";
 }
 
 function shortId(value?: string | null) {

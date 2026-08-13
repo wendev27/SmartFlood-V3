@@ -1,6 +1,7 @@
 import { assignedBarangayForUser } from "@/lib/barangayScope";
 import { dashboardViewerRole, type DashboardViewer } from "@/lib/dashboardViewer";
 import { getCampaign, reconcileCampaignDistributionReadiness, refreshCampaignExpiration } from "@/lib/emergencyCampaigns";
+import type { Pagination } from "@/lib/emergencyReports";
 import { supabaseServer } from "@/lib/supabaseServer";
 
 export type DistributionStatus =
@@ -153,6 +154,10 @@ export async function getDistributionHistoryForViewer(viewer: DashboardViewer | 
 }
 
 export async function getDistributionHistoryForViewerByBatch(viewer: DashboardViewer | null, batchId: string | null) {
+  return getDistributionHistoryForViewerByBatchPaginated(viewer, batchId, null);
+}
+
+export async function getDistributionHistoryForViewerByBatchPaginated(viewer: DashboardViewer | null, batchId: string | null, pagination: { page: number; limit: number } | null) {
   if (!viewer) {
     return { status: "UNAUTHORIZED" as const, reason: "Unauthorized." };
   }
@@ -164,9 +169,8 @@ export async function getDistributionHistoryForViewerByBatch(viewer: DashboardVi
 
   let query = supabaseServer
     .from("relief_distributions")
-    .select(distributionSelect)
-    .order("verified_at", { ascending: false })
-    .limit(100);
+    .select(distributionSelect, pagination ? { count: "exact" } : undefined)
+    .order("verified_at", { ascending: false });
 
   if (batchId) query = query.eq("batch_id", batchId);
 
@@ -176,9 +180,29 @@ export async function getDistributionHistoryForViewerByBatch(viewer: DashboardVi
     query = query.eq("barangay_id", barangay.barangay_id);
   }
 
-  const { data, error } = await query;
+  if (pagination) {
+    const from = (pagination.page - 1) * pagination.limit;
+    query = query.range(from, from + pagination.limit - 1);
+  } else {
+    query = query.limit(100);
+  }
+
+  const { data, error, count } = await query;
   if (error) throw new Error(error.message);
-  return { status: "OK" as const, distributions: await attachDistributionNames((data ?? []) as Record<string, unknown>[]) };
+  const response: { status: "OK"; distributions: DistributionSummary[]; pagination?: Pagination } = {
+    status: "OK",
+    distributions: await attachDistributionNames((data ?? []) as Record<string, unknown>[]),
+  };
+  if (pagination) {
+    const total = count ?? 0;
+    response.pagination = {
+      page: pagination.page,
+      limit: pagination.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / pagination.limit)),
+    };
+  }
+  return response;
 }
 
 export function duplicateDistributionError(error: unknown) {

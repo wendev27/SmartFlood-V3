@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { getFloodStatusLabel } from "@/lib/statusStyles";
 import { closeReliefCampaign } from "@/services/emergencyService";
@@ -28,6 +29,16 @@ type HistorySort = "newest" | "oldest" | "barangay" | "food" | "medicine" | "goo
 type GenerationInventoryField = "family_food_packs" | "medicine_kits" | "relief_goods_individual";
 type GenerationPayload = Record<GenerationInventoryField, number>;
 type NewAllocationStep = "idle" | "closing" | "generating";
+
+function paginateRecommendations<T>(rows: T[], page: number, limit: number) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / limit));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * limit;
+  return {
+    rows: rows.slice(start, start + limit).map((recommendation, index) => ({ recommendation, originalIndex: start + index })),
+    pagination: { page: safePage, limit, total: rows.length, totalPages } satisfies PaginationState,
+  };
+}
 
 const generationInventoryDefaults: Record<GenerationInventoryField, string> = {
   family_food_packs: "0",
@@ -57,6 +68,7 @@ const planCopy: Record<ReliefPlanId, { focus: string; description: string; butto
 };
 
 export function ReliefPanel() {
+  const pageSize = 5;
   const [generationInventory, setGenerationInventory] = useState<Record<GenerationInventoryField, string>>(generationInventoryDefaults);
   const [isGenerationOpen, setIsGenerationOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<ReliefRecommendation | null>(null);
@@ -68,6 +80,9 @@ export function ReliefPanel() {
   const [historyBarangayFilter, setHistoryBarangayFilter] = useState("");
   const [historySort, setHistorySort] = useState<HistorySort>("newest");
   const [historySearch, setHistorySearch] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const [currentAllocationPage, setCurrentAllocationPage] = useState(1);
+  const [selectedRecommendationPage, setSelectedRecommendationPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -126,6 +141,8 @@ export function ReliefPanel() {
     () => currentEmergencyAllocation?.items.map(mapEmergencyAllocationItem) ?? [],
     [currentEmergencyAllocation],
   );
+  const paginatedCurrentAllocationRecommendations = useMemo(() => paginateRecommendations(currentAllocationRecommendations, currentAllocationPage, pageSize), [currentAllocationPage, currentAllocationRecommendations]);
+  const paginatedSelectedRecommendations = useMemo(() => paginateRecommendations(selectedRecommendations, selectedRecommendationPage, pageSize), [selectedRecommendationPage, selectedRecommendations]);
   const hasActiveCampaign = Boolean(currentEmergencyAllocation && isActiveCampaignStatus(currentEmergencyAllocation.status));
   const historyBarangays = useMemo(() => Array.from(new Set(history.map((entry) => entry.barangay).filter(Boolean))).sort(), [history]);
   const filteredHistory = useMemo(() => {
@@ -152,11 +169,45 @@ export function ReliefPanel() {
       .sort((a, b) => sortHistoryEntries(a, b, historySort));
   }, [activeHistoryDateFilter, history, historyBarangayFilter, historySearch, historySort]);
 
+  const paginatedHistory = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredHistory.length / pageSize));
+    const safePage = Math.min(historyPage, totalPages);
+    return {
+      rows: filteredHistory.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: filteredHistory.length, totalPages } satisfies PaginationState,
+    };
+  }, [filteredHistory, historyPage]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [activeHistoryDateFilter, historyBarangayFilter, historySearch, historySort]);
+
+  useEffect(() => {
+    if (historyPage !== paginatedHistory.pagination.page) setHistoryPage(paginatedHistory.pagination.page);
+  }, [historyPage, paginatedHistory.pagination.page]);
+
+  useEffect(() => {
+    setCurrentAllocationPage(1);
+  }, [currentEmergencyAllocation?.batch_id]);
+
+  useEffect(() => {
+    setSelectedRecommendationPage(1);
+  }, [selectedPlanId]);
+
+  useEffect(() => {
+    if (currentAllocationPage !== paginatedCurrentAllocationRecommendations.pagination.page) setCurrentAllocationPage(paginatedCurrentAllocationRecommendations.pagination.page);
+  }, [currentAllocationPage, paginatedCurrentAllocationRecommendations.pagination.page]);
+
+  useEffect(() => {
+    if (selectedRecommendationPage !== paginatedSelectedRecommendations.pagination.page) setSelectedRecommendationPage(paginatedSelectedRecommendations.pagination.page);
+  }, [paginatedSelectedRecommendations.pagination.page, selectedRecommendationPage]);
+
   function resetHistoryFilters() {
     setHistoryDateFilter(defaultHistoryDateFilter(history));
     setHistoryBarangayFilter("");
     setHistorySort("newest");
     setHistorySearch("");
+    setHistoryPage(1);
   }
 
   function openGenerationModal() {
@@ -462,10 +513,10 @@ export function ReliefPanel() {
                 ) : null}
               </div>
               <div className={styles.recommendationList}>
-                {currentAllocationRecommendations.map((recommendation, index) => (
+                {paginatedCurrentAllocationRecommendations.rows.map(({ recommendation, originalIndex }) => (
                   <article
                     className={styles.recommendationCard}
-                    key={recommendation.recommendation_id || `${recommendation.barangay}-${index}`}
+                    key={recommendation.recommendation_id || `${recommendation.barangay}-${originalIndex}`}
                     onClick={() => setSelectedReport(recommendation)}
                     tabIndex={0}
                     role="button"
@@ -494,7 +545,7 @@ export function ReliefPanel() {
                     <div className={styles.cardDetails}>
                       <div>
                         <span>Barangay Status</span>
-                        <p>{formatWorkflowStatus(String(currentEmergencyAllocation.items[index]?.barangay_status ?? "pending"))}</p>
+                        <p>{formatWorkflowStatus(String(currentEmergencyAllocation.items[originalIndex]?.barangay_status ?? "pending"))}</p>
                       </div>
                       <div>
                         <span>Active Allocation</span>
@@ -504,6 +555,7 @@ export function ReliefPanel() {
                   </article>
                 ))}
               </div>
+              <SharedPagination pagination={paginatedCurrentAllocationRecommendations.pagination} onPageChange={setCurrentAllocationPage} label="Active allocation barangays" />
             </section>
           ) : null}
 
@@ -560,11 +612,12 @@ export function ReliefPanel() {
           ) : null}
 
           {selectedPlan ? (
+            <>
             <div className={styles.recommendationList}>
-              {selectedRecommendations.map((recommendation, index) => (
+              {paginatedSelectedRecommendations.rows.map(({ recommendation, originalIndex }) => (
               <article
                 className={styles.recommendationCard}
-                key={recommendation.recommendation_id || `${recommendation.barangay_name ?? recommendation.barangay}-${index}`}
+                key={recommendation.recommendation_id || `${recommendation.barangay_name ?? recommendation.barangay}-${originalIndex}`}
                 onClick={() => setSelectedReport(recommendation)}
                 tabIndex={0}
                 role="button"
@@ -603,6 +656,8 @@ export function ReliefPanel() {
               </article>
               ))}
             </div>
+            <SharedPagination pagination={paginatedSelectedRecommendations.pagination} onPageChange={setSelectedRecommendationPage} label="Selected strategy barangays" />
+            </>
           ) : null}
 
           {!isLoading && !isGenerating && generatedPlans.length === 0 && !currentEmergencyAllocation ? (
@@ -670,7 +725,7 @@ export function ReliefPanel() {
               ]}
               minWidth={760}
             >
-              {filteredHistory.map((entry) => (
+              {paginatedHistory.rows.map((entry) => (
                 <tr key={entry.recommendation_id}>
                   <td title={entry.recommendation_id}>{entry.id}</td>
                   <td>{entry.date}</td>
@@ -693,6 +748,7 @@ export function ReliefPanel() {
               ) : null}
             </DataTable>
           </div>
+          <SharedPagination pagination={paginatedHistory.pagination} onPageChange={setHistoryPage} label="Allocation history" />
         </div>
       </section>
 

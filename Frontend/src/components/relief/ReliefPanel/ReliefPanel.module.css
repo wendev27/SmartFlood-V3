@@ -100,9 +100,8 @@
 }
 
 .historyTableWrap {
-  max-height: clamp(430px, 48vh, 520px);
   min-height: 0;
-  overflow: auto;
+  overflow-x: auto;
   scrollbar-color: #9bc9ff transparent;
   scrollbar-width: thin;
 }

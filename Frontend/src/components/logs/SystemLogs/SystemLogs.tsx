@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { getCurrentUser, logLabelForRole, normalizeUserRole } from "@/lib/authSession";
 import { cn } from "@/lib/cn";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
@@ -11,6 +12,7 @@ import type { AuditLog } from "@/types/logs";
 import styles from "./SystemLogs.module.css";
 
 export function SystemLogs() {
+  const pageSize = 5;
   const [query, setQuery] = useState("");
   const [moduleFilter, setModuleFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
@@ -18,6 +20,7 @@ export function SystemLogs() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [previewLog, setPreviewLog] = useState<AuditLog | null>(null);
+  const [page, setPage] = useState(1);
   const user = getCurrentUser();
   const role = normalizeUserRole(user) ?? "barangay";
   const title = logLabelForRole(role);
@@ -68,6 +71,24 @@ export function SystemLogs() {
     });
   }, [actionFilter, moduleFilter, query, roleScopedLogs]);
 
+  const paginatedLogs = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(logs.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    const start = (safePage - 1) * pageSize;
+    return {
+      rows: logs.slice(start, start + pageSize),
+      pagination: { page: safePage, limit: pageSize, total: logs.length, totalPages } satisfies PaginationState,
+    };
+  }, [logs, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [actionFilter, moduleFilter, query]);
+
+  useEffect(() => {
+    if (page !== paginatedLogs.pagination.page) setPage(paginatedLogs.pagination.page);
+  }, [page, paginatedLogs.pagination.page]);
+
   return (
     <section className={styles.panel} aria-label={title}>
       <div className={styles.toolbar}>
@@ -105,7 +126,7 @@ export function SystemLogs() {
             </tr>
           </thead>
           <tbody>
-            {logs.map((log) => (
+            {paginatedLogs.rows.map((log) => (
               <tr key={log.log_id ?? `${log.created_at}-${log.action}`}>
                 <td>{formatDateTime(log.created_at ?? "")}</td>
                 <td>{formatBarangayName(log.actor_name || "-")}</td>
@@ -128,6 +149,7 @@ export function SystemLogs() {
           </tbody>
         </table>
       </div>
+      <Pagination pagination={paginatedLogs.pagination} onPageChange={setPage} label="Audit logs" />
 
       <Modal isOpen={Boolean(previewLog)} onClose={() => setPreviewLog(null)} labelledBy="log-preview-title" size="md">
         {previewLog ? (

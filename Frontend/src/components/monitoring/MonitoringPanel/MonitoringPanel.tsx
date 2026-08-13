@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Modal } from "@/components/ui/Modal/Modal";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
 import { filterSensorsForUserScope } from "@/lib/sensorScope";
@@ -74,6 +75,7 @@ export function MonitoringPanel({ onViewChange, resetSignal = 0, userProfile }: 
 }
 
 function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
+  const pageSize = 5;
   const [history, setHistory] = useState<FloodHistoryRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -86,6 +88,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +145,22 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
   const timelineLabels = useMemo(() => timelineTickLabels(timeline), [timeline]);
   const highestWaterLevel = Math.max(0, ...filteredHistory.map((reading) => reading.waterLevelM ?? 0));
   const latestReadingTime = filteredHistory[0]?.createdAt ?? null;
+  const paginatedHistory = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredHistory.length / pageSize));
+    const safePage = Math.min(historyPage, totalPages);
+    return {
+      rows: filteredHistory.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: filteredHistory.length, totalPages } satisfies PaginationState,
+    };
+  }, [filteredHistory, historyPage]);
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [barangay, customEnd, customStart, levelFilter, range, search, sensor]);
+
+  useEffect(() => {
+    if (historyPage !== paginatedHistory.pagination.page) setHistoryPage(paginatedHistory.pagination.page);
+  }, [historyPage, paginatedHistory.pagination.page]);
 
   function resetHistoryFilters() {
     setRange("last28");
@@ -307,7 +326,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
                 </tr>
               </thead>
               <tbody>
-                {filteredHistory.map((record, index) => (
+                {paginatedHistory.rows.map((record, index) => (
                   <tr key={historyRecordKey(record, index)}>
                     <td>{formatTimestamp(record.createdAt)}</td>
                     <td>{record.sensorName}{record.street ? ` - ${record.street}` : ""}</td>
@@ -330,6 +349,7 @@ function FloodHistory({ onBack, userProfile }: MonitoringSubpageProps) {
               </tbody>
             </table>
           </div>
+          <SharedPagination pagination={paginatedHistory.pagination} onPageChange={setHistoryPage} label="Flood history records" />
         </div>
       </article>
     </section>

@@ -7,6 +7,7 @@ import { DataTable } from "@/components/ui/DataTable/DataTable";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { LoadingState } from "@/components/ui/LoadingState";
+import { Pagination as SharedPagination, type PaginationState } from "@/components/ui/Pagination/Pagination";
 import { formatBarangayName, normalizeBarangayForCompare } from "@/lib/formatters";
 import { resolveSensorCoordinates } from "@/lib/sensorMapping";
 import { getFloodBadgeTone, getFloodStatusClass, getFloodStatusLabel, type FloodLevel } from "@/lib/statusStyles";
@@ -26,6 +27,7 @@ type SensorRow = {
 };
 
 export function SensorsPanel() {
+  const pageSize = 5;
   const mapRegionRef = useRef<HTMLDivElement | null>(null);
   const [sensorRows, setSensorRows] = useState<Record<string, unknown>[]>([]);
   const [sensors, setSensors] = useState<SensorRow[]>([]);
@@ -37,6 +39,7 @@ export function SensorsPanel() {
   const [barangayFilter, setBarangayFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [levelFilter, setLevelFilter] = useState("");
+  const [page, setPage] = useState(1);
 
   const loadSensors = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
@@ -93,6 +96,22 @@ export function SensorsPanel() {
       && (!statusFilter || sensor.status === statusFilter)
       && (!levelFilter || sensor.level === levelFilter);
   }), [barangayFilter, levelFilter, search, sensors, statusFilter]);
+  const paginatedSensors = useMemo(() => {
+    const totalPages = Math.max(1, Math.ceil(displayedSensors.length / pageSize));
+    const safePage = Math.min(page, totalPages);
+    return {
+      rows: displayedSensors.slice((safePage - 1) * pageSize, safePage * pageSize),
+      pagination: { page: safePage, limit: pageSize, total: displayedSensors.length, totalPages } satisfies PaginationState,
+    };
+  }, [displayedSensors, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [barangayFilter, levelFilter, search, statusFilter]);
+
+  useEffect(() => {
+    if (page !== paginatedSensors.pagination.page) setPage(paginatedSensors.pagination.page);
+  }, [page, paginatedSensors.pagination.page]);
 
   useEffect(() => {
     if (!selectedSensorId) return;
@@ -107,6 +126,7 @@ export function SensorsPanel() {
     setBarangayFilter("");
     setStatusFilter("");
     setLevelFilter("");
+    setPage(1);
   }
 
   function selectSensor(sensor: SensorRow) {
@@ -165,7 +185,7 @@ export function SensorsPanel() {
         {selectionMessage ? <p className={styles.selectionMessage}>{selectionMessage}</p> : null}
         <div className={styles.tableScroll}>
           <DataTable headers={["Sensor ID", "Barangay", "Coordinates", "Status", "Latest Reading", "Level"]}>
-            {displayedSensors.map((sensor, index) => (
+            {paginatedSensors.rows.map((sensor, index) => (
               <tr
                 aria-selected={selectedSensorId === sensor.sensor_key}
                 className={`${styles.clickableRow} ${selectedSensorId === sensor.sensor_key ? `${styles.selectedRow} ${styles[sensor.floodLevel]}` : ""}`}
@@ -206,6 +226,7 @@ export function SensorsPanel() {
             ) : null}
           </DataTable>
         </div>
+        <SharedPagination pagination={paginatedSensors.pagination} onPageChange={setPage} label="Sensors" />
       </article>
     </section>
   );
