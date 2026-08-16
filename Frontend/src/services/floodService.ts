@@ -19,6 +19,7 @@ export type FloodHistoryRow = {
   batteryPct: number | null;
   computedStatus: string;
   status: string;
+  deviceStatus?: string;
   createdAt: string | null;
 };
 

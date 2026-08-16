@@ -427,13 +427,6 @@ function FloodHeatmap({ onBack, userProfile }: MonitoringSubpageProps) {
       <article className={styles.heatmapCard}>
         <div className={styles.heatmapHeader}>
           <h3>Flood Risk Heatmap</h3>
-          <div className={styles.legendRow}>
-            <span><i className={styles.legendNormal} />Normal</span>
-            <span><i className={styles.legendAlert} />Flood Alert</span>
-            <span><i className={styles.legendWarning} />Flood Warning</span>
-            <span><i className={styles.legendCritical} />Severe</span>
-            <span><i className={styles.legendNoReading} />No reading</span>
-          </div>
         </div>
         <div className={styles.mapCanvas}>
           <FloodHeatmapMap readings={latestReadings} />
@@ -601,7 +594,10 @@ function latestFloodReadings(sensors: Record<string, unknown>[], history: FloodH
   return sensors.map((sensor) => {
     const sensorId = String(sensor.sensorId ?? sensor.sensor_id ?? sensor._id ?? "");
     const reading = latestBySensor.get(sensorId);
-    if (reading) return reading;
+    if (reading) return {
+      ...reading,
+      deviceStatus: String(sensor.status ?? "unknown"),
+    };
 
     const coordinates = resolveSensorCoordinates(sensor);
     return {
@@ -620,6 +616,7 @@ function latestFloodReadings(sensors: Record<string, unknown>[], history: FloodH
       batteryPct: null,
       computedStatus: "no_reading",
       status: "no_reading",
+      deviceStatus: String(sensor.status ?? "unknown"),
       createdAt: null,
     };
   });
